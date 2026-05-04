@@ -64,6 +64,27 @@ All findings are stored locally in `.vibeguard/findings.json`. Nothing leaves yo
 | `/vibecheck-resolve vg-001` | Mark as resolved |
 | `/vibecheck-scan` | Run a one-time scan of your codebase |
 | `/vibecheck-status` | Health metrics — findings, resolution rate, cost |
+| `/vibecheck-report` | Generate a full HTML health dashboard |
+
+## Health report
+
+`/vibecheck-report` generates `.vibeguard/health-report.html` — a full dashboard you can open in a browser:
+
+- All open findings grouped by severity, with effort/impact tags
+- Quick wins (high impact, low effort) called out separately
+- Resolved findings history
+- Activity timeline (what changed and when)
+- Learned patterns VibeCheck has built for your project
+
+## Works better with these tools
+
+VibeCheck detects these automatically during `init` and uses them if present — no extra setup needed:
+
+**[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — if you have OpenSpec active, VibeCheck cross-references your API specs when analyzing routes. It can flag when a new endpoint isn't in the spec, or when implementation diverges from the declared contract.
+
+**[ICM](https://github.com/Fission-AI/ICM)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibeguard/context_log.jsonl`.
+
+**[Graphify](https://github.com/Fission-AI/Graphify)** — if you have a Graphify code graph, VibeCheck uses it to understand blast radius when files change (which other files are affected), improving which files it chooses to analyze.
 
 ## What VibeCheck catches
 
