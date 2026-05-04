@@ -115,9 +115,9 @@ def track_finding_resolved(config: dict, was_dismissed: bool = False) -> None:
 
 
 def load_config(cwd: Path) -> dict:
-    """Load .vibeguard/config.json. Returns empty dict on failure."""
+    """Load .vibecheck/config.json. Returns empty dict on failure."""
     try:
-        cfg_path = cwd / ".vibeguard" / "config.json"
+        cfg_path = cwd / ".vibecheck" / "config.json"
         if cfg_path.exists():
             return json.loads(cfg_path.read_text())
     except Exception:

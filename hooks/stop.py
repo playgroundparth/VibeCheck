@@ -16,7 +16,7 @@ DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
 def debug_log(cwd, msg):
     if DEBUG:
         try:
-            with open(cwd / ".vibeguard" / "debug.log", "a") as f:
+            with open(cwd / ".vibecheck" / "debug.log", "a") as f:
                 f.write(f"[stop] {msg}\n")
         except Exception:
             pass
@@ -97,7 +97,7 @@ If you already appended the VibeCheck footer above — you're done, ignore this.
 If you didn't — do it now (CLAUDE.md §VibeCheck requires it after every Write/Edit/MultiEdit).
 
 Next finding ID: vg-{next_id:03d}
-Findings file: {cwd / '.vibeguard' / 'findings.json'}{open_summary}"""
+Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}"""
 
     print(json.dumps({"systemMessage": msg}))
 

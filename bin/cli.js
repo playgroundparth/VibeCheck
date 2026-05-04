@@ -34,16 +34,16 @@ function showHelp() {
 VibeCheck — background safety agent for vibe coders
 
 Setup:
-  npx vibeguard init              Set up VibeCheck in this project
-  npx vibeguard update            Update hooks and lib to latest version
-  npx vibeguard uninstall         Remove VibeCheck from this project
-  npx vibeguard uninstall --keep-data   Remove hooks but keep .vibeguard/ findings
-  npx vibeguard scan              Scan existing codebase for risks
-  npx vibeguard status            Show health metrics for this project
+  npx vibecheck init              Set up VibeCheck in this project
+  npx vibecheck update            Update hooks and lib to latest version
+  npx vibecheck uninstall         Remove VibeCheck from this project
+  npx vibecheck uninstall --keep-data   Remove hooks but keep .vibecheck/ findings
+  npx vibecheck scan              Scan existing codebase for risks
+  npx vibecheck status            Show health metrics for this project
 
 Multi-project (if global registry enabled):
-  npx vibeguard list              List all VibeCheck projects
-  npx vibeguard list --prune      Remove projects whose path no longer exists
+  npx vibecheck list              List all VibeCheck projects
+  npx vibecheck list --prune      Remove projects whose path no longer exists
 
 Inside Claude Code:
   /vibecheck                   See findings with fix prompts
@@ -60,9 +60,9 @@ Inside Claude Code:
 }
 
 function showProjectList(prune) {
-  const registryPath = path.join(os.homedir(), ".vibeguard", "registry.json");
+  const registryPath = path.join(os.homedir(), ".vibecheck", "registry.json");
   if (!fs.existsSync(registryPath)) {
-    console.log("No projects registered. Enable global registry during `vibeguard init`.");
+    console.log("No projects registered. Enable global registry during `vibecheck init`.");
     return;
   }
 
@@ -76,14 +76,14 @@ function showProjectList(prune) {
 
   let projects = Object.values(data.projects || {});
 
-  // Prune: remove projects whose path no longer exists OR no longer has .vibeguard/
+  // Prune: remove projects whose path no longer exists OR no longer has .vibecheck/
   if (prune) {
     const initialCount = projects.length;
     const stillValid = {};
     let pruned = [];
     for (const p of projects) {
       const projectExists = p.path && fs.existsSync(p.path);
-      const vgInstalled = projectExists && fs.existsSync(path.join(p.path, ".vibeguard"));
+      const vgInstalled = projectExists && fs.existsSync(path.join(p.path, ".vibecheck"));
       if (projectExists && vgInstalled) {
         stillValid[p.id] = p;
       } else {
@@ -128,9 +128,9 @@ function showProjectList(prune) {
 
 function showStatus() {
   const cwd = process.cwd();
-  const vgDir = path.join(cwd, ".vibeguard");
+  const vgDir = path.join(cwd, ".vibecheck");
   if (!fs.existsSync(vgDir)) {
-    console.log("VibeCheck not initialized in this project.\n  Run: npx vibeguard init");
+    console.log("VibeCheck not initialized in this project.\n  Run: npx vibecheck init");
     return;
   }
   // Run Python to get the metrics summary

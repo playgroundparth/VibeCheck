@@ -24,9 +24,9 @@ Tracks measurable signals so you can answer "is this actually working?":
   Usage metrics:
     - Sessions VibeCheck ran in
     - Tasks completed
-    - /vg invocations (user actually looked)
+    - /vibecheck invocations (user actually looked)
 
-Stored in .vibeguard/metrics.json. Fully local.
+Stored in .vibecheck/metrics.json. Fully local.
 """
 
 import json
@@ -56,7 +56,7 @@ def load_metrics(cwd: Path) -> Dict:
             "findings_created": 0,
             "findings_resolved": 0,
             "findings_dismissed": 0,
-            "vg_invocations": 0,  # user typed /vg
+            "vg_invocations": 0,  # user typed /vibecheck
             "tasks_completed": 0,
             "sessions": 0,
         },
@@ -147,7 +147,7 @@ def record_finding_resolved(cwd: Path, was_false_positive: bool = False):
 
 
 def record_vg_invocation(cwd: Path):
-    """User typed /vg — strongest signal of engagement."""
+    """User typed /vibecheck — strongest signal of engagement."""
     m = load_metrics(cwd)
     m["totals"]["vg_invocations"] += 1
     today = today_key()
@@ -174,7 +174,7 @@ def record_hook_overhead(cwd: Path, hook_name: str, latency_ms: int):
     save_metrics(cwd, m)
 
 
-# ─── Reporting (used by /vg-status and the health report) ────────────────────
+# ─── Reporting (used by /vibecheck-status and the health report) ────────────────────
 
 def get_summary(cwd: Path) -> Dict:
     """High-level summary for status display."""
@@ -261,13 +261,13 @@ def health_signals(cwd: Path) -> Dict:
     if fp_rate > 0.4:
         signals["false_positive_warning"] = (
             f"{int(fp_rate*100)}% of findings dismissed — VibeCheck is generating too much noise. "
-            f"Consider switching to Sonnet (/vg-model sonnet) for higher quality findings."
+            f"Consider switching to Sonnet (/vibecheck-model sonnet) for higher quality findings."
         )
 
-    # Engagement: if user runs many tasks but never types /vg, the summary line isn't working
+    # Engagement: if user runs many tasks but never types /vibecheck, the summary line isn't working
     if summary["tasks_completed"] > 5 and summary["engagement_rate"] < 0.1:
         signals["engagement_warning"] = (
-            f"You've completed {summary['tasks_completed']} tasks but only opened /vg "
+            f"You've completed {summary['tasks_completed']} tasks but only opened /vibecheck "
             f"{summary['vg_invocations']} times. Either nothing is being flagged, or the "
             f"summary line is being missed."
         )

@@ -1,6 +1,6 @@
-# VibeGuard Test Plan — for your 199-file vibe-coded repo
+# VibeCheck Test Plan — for your 199-file vibe-coded repo
 
-This guide is for testing VibeGuard on a real repository. It assumes you're not a developer and walks through every step.
+This guide is for testing VibeCheck on a real repository. It assumes you're not a developer and walks through every step.
 
 ---
 
@@ -29,7 +29,7 @@ You should see your project files when you run `ls` (Mac/Linux) or `dir` (Window
 
 ---
 
-## Step 2 — Install VibeGuard
+## Step 2 — Install VibeCheck
 
 For now, since this is pre-release, copy the entire `vibeguard/` folder to a known location (e.g., `~/Code/vibeguard/`).
 
@@ -38,40 +38,40 @@ Then from your project directory, run:
 node ~/Code/vibeguard/bin/cli.js init
 ```
 
-(When VibeGuard is published to npm later, this becomes `npx vibecheck init`.)
+(When VibeCheck is published to npm later, this becomes `npx vibecheck init`.)
 
 You'll see:
 ```
-🛡️  VibeGuard init
+🛡️  VibeCheck init
 
 🔗 Detected: graphify, openspec
-   VibeGuard will use these for better context.
+   VibeCheck will use these for better context.
 
 📊 Anonymous usage stats? (counts only, no code, no paths)
-   This helps improve VibeGuard. Off by default. (y/N):
+   This helps improve VibeCheck. Off by default. (y/N):
 ```
 
-**My recommendation:** Type `n` for telemetry (you don't owe anyone data), and `y` for global registry (lets `vibeguard list` work later).
+**My recommendation:** Type `n` for telemetry (you don't owe anyone data), and `y` for global registry (lets `vibecheck list` work later).
 
 The output will look like:
 ```
 ✓ Project ID: git-3a4b5c6d7e8f
-✓ Created .vibeguard/
-✓ Created .vibeguard/config.json
+✓ Created .vibecheck/
+✓ Created .vibecheck/config.json
 ✓ Installed lib → .claude/hooks/lib/
 ✓ Installed agents → .claude/agents/
-✓ Installed skill → .claude/skills/vibeguard.md
+✓ Installed skill → .claude/skills/vibecheck.md
 ✓ Installed hooks → .claude/hooks/
 ✓ Registered hooks in .claude/settings.json
 ✓ Updated CLAUDE.md
-✓ Added .vibeguard/ to .gitignore
-✓ Created .vibeguardignore (customize what to skip)
+✓ Added .vibecheck/ to .gitignore
+✓ Created .vibecheck-ignore (customize what to skip)
 📚 Building lightweight project map...
    Indexed 199 source files (offline, no LLM)
 ✓ Registered in global registry
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ VibeGuard active in: my-vibe-coded-app
+✅ VibeCheck active in: my-vibe-coded-app
    Project ID: git-3a4b5c6d7e8f
    Integrations: graphify, openspec
 ...
@@ -85,9 +85,9 @@ If you see errors, send them to me before continuing.
 
 ## Step 3 — Customize what to ignore (optional, ~1 minute)
 
-VibeGuard auto-ignores `node_modules/`, `dist/`, `.git/`, and other obvious junk.
+VibeCheck auto-ignores `node_modules/`, `dist/`, `.git/`, and other obvious junk.
 
-Open `.vibeguardignore` (it was just created in your project root) and add anything you want to skip:
+Open `.vibecheck-ignore` (it was just created in your project root) and add anything you want to skip:
 
 ```
 # Skip docs — usually not relevant for security analysis
@@ -117,10 +117,10 @@ node ~/Code/vibeguard/bin/cli.js scan
 
 You'll see:
 ```
-🔍 VibeGuard Scan — Cost Estimate
+🔍 VibeCheck Scan — Cost Estimate
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Source files found:  ~199
-Files VibeGuard reads: ~20 (strategic sample, not all files)
+Files VibeCheck reads: ~20 (strategic sample, not all files)
 
 Model:           Claude Haiku (fast, cheapest option)
 Estimated cost:  ~$0.03–$0.10
@@ -133,7 +133,7 @@ Type `yes`.
 
 After 30-60 seconds, you'll see a summary like:
 ```
-VibeGuard scan complete.
+VibeCheck scan complete.
 
 Reviewed: ~20 files
 Found: 3 critical · 2 pitfalls · 5 hygiene · 4 suggestions
@@ -141,7 +141,7 @@ Found: 3 critical · 2 pitfalls · 5 hygiene · 4 suggestions
 Top finding: Stripe API key hardcoded in src/config.js
 ```
 
-**This is your first signal that VibeGuard is working.**
+**This is your first signal that VibeCheck is working.**
 
 ---
 
@@ -154,7 +154,7 @@ claude
 
 Once Claude is open, type:
 ```
-/vg
+/vibecheck
 ```
 
 You should see all findings grouped by severity, with quick wins at the top, plain-English explanations, and ready-to-paste fix prompts for each.
@@ -167,21 +167,21 @@ You should see all findings grouped by severity, with quick wins at the top, pla
 
 Type in Claude:
 ```
-/vg-report
+/vibecheck-report
 ```
 
 You'll see:
 ```
-📊 Health report updated: .vibeguard/health-report.html
+📊 Health report updated: .vibecheck/health-report.html
 
 Open it in your browser:
-  macOS:   open .vibeguard/health-report.html
+  macOS:   open .vibecheck/health-report.html
   ...
 ```
 
 Open that file in your browser. You'll see the full dashboard with charts, project info, timeline, learned patterns, and all findings.
 
-This is your "is VibeGuard giving me anything useful?" view. Browse it for 2 minutes.
+This is your "is VibeCheck giving me anything useful?" view. Browse it for 2 minutes.
 
 ---
 
@@ -189,10 +189,10 @@ This is your "is VibeGuard giving me anything useful?" view. Browse it for 2 min
 
 Just code as usual with Claude. After every task, you'll see a one-liner like:
 ```
-[VibeGuard] 🔴 1 critical · 💡 2 suggestions · /vg to review
+[VibeCheck] 🔴 1 critical · 💡 2 suggestions · /vibecheck to review
 ```
 
-**Don't try to clear all findings immediately.** That defeats the test. Just notice when VibeGuard catches things you wouldn't have thought of.
+**Don't try to clear all findings immediately.** That defeats the test. Just notice when VibeCheck catches things you wouldn't have thought of.
 
 ---
 
@@ -205,7 +205,7 @@ node ~/Code/vibeguard/bin/cli.js status
 
 You'll see:
 ```
-🛡️  VibeGuard status
+🛡️  VibeCheck status
 
   Total cost:        $0.0234
   Last 7 days cost:  $0.0156 (8 analyses)
@@ -218,7 +218,7 @@ You'll see:
   Dismissed (FP):    2  (11%)
 
   Tasks completed:   15
-  /vg invocations:   7  (engagement: 47%)
+  /vibecheck invocations:   7  (engagement: 47%)
 
 Signals:
   ✓ Good signal: 28% of findings have been resolved. VibeCheck is surfacing things you act on.
@@ -231,16 +231,16 @@ Signals:
 |---|---|---|
 | **Resolution rate** (resolved / created) | >20% | Findings are real and actionable. Below 10% = noise. |
 | **False positive rate** (dismissed / created) | <30% | Tool is calibrated. Above 40% = too noisy, switch to Sonnet. |
-| **Engagement rate** (/vg invocations / tasks) | >20% | You're actually looking at findings. Below 10% = ignored. |
+| **Engagement rate** (/vibecheck invocations / tasks) | >20% | You're actually looking at findings. Below 10% = ignored. |
 | **Avg latency** | <30s | Hook isn't timing out. >60s = serious problem. |
 | **Cost per analysis** | <$0.005 (Haiku) | Reasonable. >$0.01 means analyzer is reading too much. |
 
 ### Red flags to watch for
 
-- **`resolution_rate` below 10%** — findings aren't actionable. Either Haiku is too dumb or your repo confuses it. Try `/vg-model sonnet`.
-- **`false_positive_rate` above 40%** — too much noise. Use `/vg-resolve <id> false positive` to mark them, the patterns will deprioritize over time.
+- **`resolution_rate` below 10%** — findings aren't actionable. Either Haiku is too dumb or your repo confuses it. Try `/vibecheck-model sonnet`.
+- **`false_positive_rate` above 40%** — too much noise. Use `/vibecheck-resolve <id> false positive` to mark them, the patterns will deprioritize over time.
 - **`engagement_rate` below 5%** — you're ignoring findings. Either the summary line isn't visible (UX problem) or nothing is being flagged (working but silent).
-- **`avg_analyzer_latency_ms` above 60000** — analyzer is timing out. May indicate the subprocess isn't completing properly. Check `.vibeguard/debug.log`.
+- **`avg_analyzer_latency_ms` above 60000** — analyzer is timing out. May indicate the subprocess isn't completing properly. Check `.vibecheck/debug.log`.
 
 ### Debug mode
 
@@ -248,7 +248,7 @@ If something seems wrong, enable debug logging:
 ```bash
 export VIBEGUARD_DEBUG=1
 ```
-Then use Claude Code normally. Every hook fire writes to `.vibeguard/debug.log`. Check that file for what happened.
+Then use Claude Code normally. Every hook fire writes to `.vibecheck/debug.log`. Check that file for what happened.
 
 ---
 
@@ -266,9 +266,9 @@ Based on 199 files / 236K words:
 |---|---|---|
 | Light coding (3-5 tasks/day) | $0.02–$0.08 | $0.04/day |
 | Heavy coding (15-20 tasks/day) | $0.10–$0.30 | $0.20/day |
-| With Sonnet (`/vg-model sonnet`) | 4-5x above | |
+| With Sonnet (`/vibecheck-model sonnet`) | 4-5x above | |
 
-**Worst-case ceiling: $1/day on Haiku, $5/day on Sonnet.** If you're seeing higher than that, something's wrong — check `vibeguard status` and the debug log.
+**Worst-case ceiling: $1/day on Haiku, $5/day on Sonnet.** If you're seeing higher than that, something's wrong — check `vibecheck status` and the debug log.
 
 ---
 
@@ -276,13 +276,13 @@ Based on 199 files / 236K words:
 
 After 5-7 days of real use, share:
 
-1. **The output of `vibeguard status`** — tells us if metrics look healthy
-2. **The contents of `.vibeguard/findings.json`** — let's see what got flagged
+1. **The output of `vibecheck status`** — tells us if metrics look healthy
+2. **The contents of `.vibecheck/findings.json`** — let's see what got flagged
 3. **3 examples** — pick:
    - One finding that was genuinely useful (caught something you didn't know)
    - One finding that was wrong/noise (false positive)
-   - One thing VibeGuard MISSED that should have been flagged
-4. **The debug log if anything seemed broken** — `.vibeguard/debug.log`
+   - One thing VibeCheck MISSED that should have been flagged
+4. **The debug log if anything seemed broken** — `.vibecheck/debug.log`
 
 That's it. Don't pre-clean anything. Real usage data is what we need.
 
@@ -290,9 +290,9 @@ That's it. Don't pre-clean anything. Real usage data is what we need.
 
 ## Troubleshooting
 
-**"VibeGuard hasn't run yet" after multiple tasks**
+**"VibeCheck hasn't run yet" after multiple tasks**
 
-The hooks may not be firing. Check `.claude/settings.json` has the hooks registered. Try `export VIBEGUARD_DEBUG=1` and watch `.vibeguard/debug.log`.
+The hooks may not be firing. Check `.claude/settings.json` has the hooks registered. Try `export VIBEGUARD_DEBUG=1` and watch `.vibecheck/debug.log`.
 
 **Subprocess errors / "claude command not found"**
 
@@ -300,12 +300,12 @@ The async analyzer subprocess uses `claude -p`. Make sure the `claude` command w
 
 **Lock file stuck**
 
-If `.vibeguard/analysis.lock` exists for >2 minutes, it gets auto-cleared. If you see this often, the analyzer is timing out (60s limit). Check the debug log.
+If `.vibecheck/analysis.lock` exists for >2 minutes, it gets auto-cleared. If you see this often, the analyzer is timing out (60s limit). Check the debug log.
 
 **Wildly high cost**
 
-Run `vibeguard status` immediately. If `last_7_days_cost` is unexpected, check the timeline (`/vg-timeline`) for what's been running. The most likely cause is the analyzer running on every tiny file change. We can tune the trigger threshold.
+Run `vibecheck status` immediately. If `last_7_days_cost` is unexpected, check the timeline (`/vibecheck-timeline`) for what's been running. The most likely cause is the analyzer running on every tiny file change. We can tune the trigger threshold.
 
 **False positive avalanche**
 
-If VibeGuard flags 20 things in one task, something's miscalibrated. Use `/vg-resolve <id> false positive` to mark each one — the patterns will deprioritize. If it's overwhelming, edit `.vibeguardignore` to add the directory it's getting confused by.
+If VibeCheck flags 20 things in one task, something's miscalibrated. Use `/vibecheck-resolve <id> false positive` to mark each one — the patterns will deprioritize. If it's overwhelming, edit `.vibecheck-ignore` to add the directory it's getting confused by.

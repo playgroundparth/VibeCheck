@@ -55,7 +55,7 @@ It also installs three hooks:
 - **SessionStart hook** — injects open findings count and recent context into every new session so nothing is forgotten
 - **PostToolUse hook** — silently extracts project facts (auth provider, ORM, webhook setup) from files as they're read or written
 
-All findings are stored locally in `.vibeguard/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
+All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
 
 ## Commands
 
@@ -70,7 +70,7 @@ All findings are stored locally in `.vibeguard/findings.json`. Nothing leaves yo
 
 ## Health report
 
-`/vibecheck-report` generates `.vibeguard/health-report.html` — a full dashboard you can open in a browser:
+`/vibecheck-report` generates `.vibecheck/health-report.html` — a full dashboard you can open in a browser:
 
 - All open findings grouped by severity, with effort/impact tags
 - Quick wins (high impact, low effort) called out separately
@@ -84,7 +84,7 @@ VibeCheck detects these automatically during `init` and uses them if present —
 
 **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — if you have OpenSpec active, VibeCheck cross-references your API specs when analyzing routes. It can flag when a new endpoint isn't in the spec, or when implementation diverges from the declared contract.
 
-**[ICM](https://github.com/rtk-ai/icm)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibeguard/context_log.jsonl`.
+**[ICM](https://github.com/rtk-ai/icm)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibecheck/context_log.jsonl`.
 
 **[Graphify](https://graphify.net/)** — if you have a Graphify code graph, VibeCheck uses it to understand blast radius when files change (which other files are affected), improving which files it chooses to analyze.
 
@@ -115,7 +115,7 @@ VibeCheck detects these automatically during `init` and uses them if present —
 
 ## Context capture
 
-VibeCheck also tells Claude to capture important context before responding — architecture decisions, errors resolved, user preferences. This is stored in `.vibeguard/context_log.jsonl` and injected into every new session so Claude remembers what matters across conversations.
+VibeCheck also tells Claude to capture important context before responding — architecture decisions, errors resolved, user preferences. This is stored in `.vibecheck/context_log.jsonl` and injected into every new session so Claude remembers what matters across conversations.
 
 ## Cost
 
@@ -129,7 +129,7 @@ When a new version is released, run this in your project to pull in the latest h
 npx github:playgroundparth/VibeCheck update
 ```
 
-This re-copies only the VibeCheck files into `.claude/` — your `.vibeguard/` findings, `CLAUDE.md`, and `settings.json` are never touched. Restart Claude Code after updating.
+This re-copies only the VibeCheck files into `.claude/` — your `.vibecheck/` findings, `CLAUDE.md`, and `settings.json` are never touched. Restart Claude Code after updating.
 
 ## Uninstall
 
@@ -140,7 +140,7 @@ npx github:playgroundparth/VibeCheck uninstall --keep-data   # remove hooks, kee
 
 ## Privacy
 
-- All findings are stored locally in `.vibeguard/` (auto-added to `.gitignore`)
+- All findings are stored locally in `.vibecheck/` (auto-added to `.gitignore`)
 - Anonymous usage stats are **off by default** — you're asked during `init`
 - If opted in: only event names and counts are sent, never file paths, code, or finding content
 - Opt out anytime: `VIBECHECK_TELEMETRY=0` or `DO_NOT_TRACK=1`

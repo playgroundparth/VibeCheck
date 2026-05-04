@@ -2,7 +2,7 @@
 
 ## Context Capture — MANDATORY triggers
 
-You MUST append to `.vibeguard/context_log.jsonl` BEFORE responding when ANY of these happen:
+You MUST append to `.vibecheck/context_log.jsonl` BEFORE responding when ANY of these happen:
 
 1. **Error resolved** — you fixed a bug or unblocked something that was failing
 2. **Architecture/design decision** — a non-obvious choice was made (why matters, not just what)
@@ -14,7 +14,7 @@ Do this BEFORE the rest of your response. Not after. Not "I'll note that." Write
 
 Do NOT store: trivial details, build logs, git status, anything already in CLAUDE.md.
 
-### Format — append one line to `.vibeguard/context_log.jsonl`:
+### Format — append one line to `.vibecheck/context_log.jsonl`:
 ```json
 {"ts":"ISO-timestamp","type":"error-resolved|decision|preference|task-completed|progress","summary":"what happened and why it matters","importance":"high|critical"}
 ```
@@ -27,10 +27,10 @@ To append: Read the file first (or treat as empty if missing), then Write the fu
 
 After ANY response where you used Write, Edit, or MultiEdit tools, do this at the END of your response — after completing the user's request:
 
-1. Read `.vibeguard/findings.json` to get existing findings and next ID
+1. Read `.vibecheck/findings.json` to get existing findings and next ID
 2. Read each file you just modified (you know which ones — you edited them this turn)
 3. Check for security issues AND dev tips (rules below)
-4. Write new security findings to `.vibeguard/findings.json`
+4. Write new security findings to `.vibecheck/findings.json`
 5. Auto-resolve: for each open finding whose file you read, if issue is gone → set `status:"resolved"`, add `resolved_at`, `resolution_note:"auto-resolved"`
 6. **Always end your response with a VibeCheck footer** (format below)
 
@@ -61,7 +61,7 @@ After ANY response where you used Write, Edit, or MultiEdit tools, do this at th
 
 **DROP** (never report): large files, console.log unless leaking secrets, naming style, anything already in existing findings.
 
-Finding format (append to `.vibeguard/findings.json`):
+Finding format (append to `.vibecheck/findings.json`):
 ```json
 {"id":"vg-NNN","severity":"CRITICAL|PITFALL|HYGIENE|GOOD_TO_HAVE","title":"under 100 chars","file":"relative/path:line","why":"concrete consequence, under 200 chars","fix_prompt":"paste-ready fix","status":"open","source":"live","detected_at":"ISO timestamp"}
 ```

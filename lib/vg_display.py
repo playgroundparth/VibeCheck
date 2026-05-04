@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-formats findings for /vg command output. Works from any cwd including worktrees."""
+"""Pre-formats findings for /vibecheck command output. Works from any cwd including worktrees."""
 import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -43,18 +43,18 @@ def format_finding(f, cwd):
         out.append(f"\n{details}")
     if fix:
         out.append(f"\n**Fix** — paste to Claude:\n```\n{fix.strip()}\n```")
-    out.append(f"\n`/vg-resolve {fid}` · `/vg-detail {fid}`")
+    out.append(f"\n`/vibecheck-resolve {fid}` · `/vibecheck-detail {fid}`")
     return "\n".join(out)
 
 def main():
     cwd = project.find_project_root(Path("."))
     if not cwd or not store.is_initialized(cwd):
-        print("VibeCheck not initialized. Run: `npx vibeguard@latest init`")
+        print("VibeCheck not initialized. Run: `npx github:playgroundparth/VibeCheck init`")
         return
 
-    findings_path = cwd / ".vibeguard" / "findings.json"
+    findings_path = cwd / ".vibecheck" / "findings.json"
     if not findings_path.exists():
-        print("No findings yet. Try `/vg-scan` to run a full scan.")
+        print("No findings yet. Try `/vibecheck-scan` to run a full scan.")
         return
 
     all_findings = json.loads(findings_path.read_text())

@@ -1,6 +1,6 @@
-Run a VibeGuard full-repo scan using the vibeguard-scanner agent.
+Run a VibeCheck full-repo scan using the vibecheck-scanner agent.
 
-First confirm VibGuard is initialized:
+First confirm VibeCheck is initialized:
 ```bash
 ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 -c "
@@ -13,6 +13,6 @@ print('initialized:', store.is_initialized(cwd) if cwd else False)
 "
 ```
 
-Then invoke the SubAgent tool with agent `vibeguard-scanner` to run the full scan.
+Then invoke the SubAgent tool with agent `vibecheck-scanner` to run the full scan.
 
-After the scan completes, read `<project-root>/.vibeguard/findings.json` and show a summary grouped by severity.
+After the scan completes, read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity.

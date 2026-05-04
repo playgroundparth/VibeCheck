@@ -10,7 +10,7 @@ VibeCheck is active in this project. It runs security analysis inline at the end
 - `/vibecheck-scan` — one-time scan of the full codebase
 - `/vibecheck-status` — health metrics
 
-## Findings are in `.vibeguard/findings.json`
+## Findings are in `.vibecheck/findings.json`
 
 Severity levels: CRITICAL · PITFALL · HYGIENE · GOOD_TO_HAVE
 

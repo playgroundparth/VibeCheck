@@ -16,7 +16,7 @@ LOCK_CHECK_INTERVAL = 0.5
 def debug_log(cwd, msg):
     if DEBUG:
         try:
-            with open(cwd / ".vibeguard" / "debug.log", "a") as f:
+            with open(cwd / ".vibecheck" / "debug.log", "a") as f:
                 f.write(f"[start] {msg}\n")
         except Exception:
             pass

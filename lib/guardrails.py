@@ -4,7 +4,7 @@ VibeCheck guardrails.
 
 Validates that the analyzer subagent didn't:
   - Modify any source files
-  - Write outside .vibeguard/
+  - Write outside .vibecheck/
   - Read or include sensitive file contents in findings
   - Create excessive findings or patterns
   - Include obvious prompt injection attempts in findings text
@@ -43,10 +43,10 @@ def is_sensitive_path(file_path: Path) -> bool:
 
 
 def is_within_vibeguard(file_path: Path, cwd: Path) -> bool:
-    """Check if file is inside the .vibeguard/ directory."""
+    """Check if file is inside the .vibecheck/ directory."""
     try:
         resolved = file_path.resolve()
-        vg = (cwd / ".vibeguard").resolve()
+        vg = (cwd / ".vibecheck").resolve()
         return str(resolved).startswith(str(vg))
     except Exception:
         return False

@@ -3,7 +3,7 @@
  * vibecheck update
  *
  * Re-copies hooks, lib, and commands from the package into the project's
- * .claude/ directory. Safe to run anytime — never touches .vibeguard/ data,
+ * .claude/ directory. Safe to run anytime — never touches .vibecheck/ data,
  * CLAUDE.md, or settings.json.
  */
 
@@ -16,7 +16,7 @@ const VIBECHECK_ROOT = path.join(__dirname, "..");
 
 const cwd = process.cwd();
 const claudeDir = path.join(cwd, ".claude");
-const vgDir = path.join(cwd, ".vibeguard");
+const vgDir = path.join(cwd, ".vibecheck");
 
 if (!fs.existsSync(vgDir)) {
   console.log("VibeCheck is not installed in this project. Run: npx github:playgroundparth/VibeCheck init");
@@ -52,9 +52,9 @@ for (const f of libFiles) {
 
 // Update hook files
 const hookFiles = [
-  ["hooks/stop.py", "hooks/vibeguard_stop.py"],
-  ["hooks/session_start.py", "hooks/vibeguard_session_start.py"],
-  ["hooks/post_tool.py", "hooks/vibeguard_post_tool.py"],
+  ["hooks/stop.py", "hooks/vibecheck_stop.py"],
+  ["hooks/session_start.py", "hooks/vibecheck_session_start.py"],
+  ["hooks/post_tool.py", "hooks/vibecheck_post_tool.py"],
 ];
 const hooksDir = path.join(claudeDir, "hooks");
 for (const [src, dst] of hookFiles) {
@@ -93,6 +93,6 @@ if (fs.existsSync(skillSrc)) {
 }
 
 console.log(`Updated ${updated.length} files in .claude/`);
-console.log("\nNot touched: .vibeguard/ data, CLAUDE.md, settings.json\n");
+console.log("\nNot touched: .vibecheck/ data, CLAUDE.md, settings.json\n");
 console.log("Restart Claude Code to pick up the changes.");
 console.log();

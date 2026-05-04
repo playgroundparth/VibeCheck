@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * vibeguard init
+ * vibecheck init
  */
 
 import fs from "fs";
@@ -46,8 +46,8 @@ async function main() {
 
   // Global registry opt-in
   const globalRegistry = nonInteractive ? false : await askYesNo(
-    "\n📁 Global project registry? (lets `vibeguard list` show all your projects)\n" +
-    "   Stores ONLY: project name, ID, path, git remote in ~/.vibeguard/registry.json.\n" +
+    "\n📁 Global project registry? (lets `vibecheck list` show all your projects)\n" +
+    "   Stores ONLY: project name, ID, path, git remote in ~/.vibecheck/registry.json.\n" +
     "   No code, no findings, no secrets. (y/N): ",
     false
   );
@@ -59,12 +59,12 @@ async function main() {
   const projectName = computeProjectName(cwd);
   console.log(`✓ Project ID: ${projectId} (${projectName})`);
 
-  // Create .vibeguard/
-  const vgDir = path.join(cwd, ".vibeguard");
+  // Create .vibecheck/
+  const vgDir = path.join(cwd, ".vibecheck");
   ["", "patterns", "proposed_skills"].forEach((sub) =>
     fs.mkdirSync(path.join(vgDir, sub), { recursive: true })
   );
-  console.log("✓ Created .vibeguard/");
+  console.log("✓ Created .vibecheck/");
 
   // Initialize JSON data files
   const now = new Date().toISOString();
@@ -109,7 +109,7 @@ async function main() {
     installed_at: now,
   };
   fs.writeFileSync(path.join(vgDir, "config.json"), JSON.stringify(config, null, 2));
-  console.log("✓ Created .vibeguard/config.json");
+  console.log("✓ Created .vibecheck/config.json");
 
   // Set up .claude/
   const claudeDir = path.join(cwd, ".claude");
@@ -135,11 +135,11 @@ async function main() {
   // Copy agents
   copyFile(
     path.join(VIBEGUARD_ROOT, "agents", "analyzer.md"),
-    path.join(claudeDir, "agents", "vibeguard-analyzer.md")
+    path.join(claudeDir, "agents", "vibecheck-analyzer.md")
   );
   copyFile(
     path.join(VIBEGUARD_ROOT, "agents", "scanner.md"),
-    path.join(claudeDir, "agents", "vibeguard-scanner.md")
+    path.join(claudeDir, "agents", "vibecheck-scanner.md")
   );
   console.log("✓ Installed agents → .claude/agents/");
 
@@ -162,17 +162,17 @@ async function main() {
   // Copy hooks
   copyFile(
     path.join(VIBEGUARD_ROOT, "hooks", "stop.py"),
-    path.join(claudeDir, "hooks", "vibeguard_stop.py")
+    path.join(claudeDir, "hooks", "vibecheck_stop.py")
   );
   copyFile(
     path.join(VIBEGUARD_ROOT, "hooks", "session_start.py"),
-    path.join(claudeDir, "hooks", "vibeguard_session_start.py")
+    path.join(claudeDir, "hooks", "vibecheck_session_start.py")
   );
   copyFile(
     path.join(VIBEGUARD_ROOT, "hooks", "post_tool.py"),
-    path.join(claudeDir, "hooks", "vibeguard_post_tool.py")
+    path.join(claudeDir, "hooks", "vibecheck_post_tool.py")
   );
-  ["vibeguard_stop.py", "vibeguard_session_start.py", "vibeguard_post_tool.py"].forEach((f) =>
+  ["vibecheck_stop.py", "vibecheck_session_start.py", "vibecheck_post_tool.py"].forEach((f) =>
     fs.chmodSync(path.join(claudeDir, "hooks", f), 0o755)
   );
   console.log("✓ Installed hooks → .claude/hooks/");
@@ -188,8 +188,8 @@ async function main() {
   // .gitignore
   updateGitignore(cwd);
 
-  // .vibeguardignore (default content if missing)
-  const vgIgnorePath = path.join(cwd, ".vibeguardignore");
+  // .vibecheck-ignore (default content if missing)
+  const vgIgnorePath = path.join(cwd, ".vibecheck-ignore");
   if (!fs.existsSync(vgIgnorePath)) {
     const defaultContent = `# VibeCheck ignore patterns
 # Like .gitignore — patterns to skip during analysis.
@@ -204,7 +204,7 @@ async function main() {
 # legacy/                  # skip legacy code we're not actively touching
 `;
     fs.writeFileSync(vgIgnorePath, defaultContent);
-    console.log("✓ Created .vibeguardignore (customize what to skip)");
+    console.log("✓ Created .vibecheck-ignore (customize what to skip)");
   }
 
   // Build initial project map (background, doesn't block)
@@ -227,7 +227,7 @@ async function main() {
         `PYTHONPATH=.claude/hooks/lib python3 -c "import sys; sys.path.insert(0, '.claude/hooks/lib'); from pathlib import Path; import project; project.registry_register(Path('.'))"`,
         { cwd, stdio: ["pipe", "pipe", "pipe"] }
       );
-      console.log("✓ Registered in global registry (~/.vibeguard/registry.json)");
+      console.log("✓ Registered in global registry (~/.vibecheck/registry.json)");
     } catch {
       console.log("⚠️  Could not register globally");
     }
@@ -240,28 +240,27 @@ async function main() {
    ${integrations.length > 0 ? `Integrations: ${integrations.join(", ")}` : "No external tools detected"}
 
 After each task Claude finishes, you'll see:
-  [VibeCheck] 🔴 1 critical · 💡 3 suggestions · /vg to review
+  [VibeCheck] 🔴 1 critical · 💡 3 suggestions · /vibecheck to review
 
 Commands:
-  /vg                   View findings with fix prompts
-  /vg-detail [id]       Full detail on one finding
-  /vg-resolve [id]      Mark fixed
-  /vg-scan              Scan existing codebase
-  /vg-report            Open health dashboard
-  /vg-timeline          Activity log
-  /vg-status            Project health overview
-  /vg-skills            Review proposed skills
-  /vg-promote-skill     Promote a proposed skill to active
-  /vg-model [model]     Switch model (haiku|sonnet)
+  /vibecheck                   View findings with fix prompts
+  /vibecheck-detail [id]       Full detail on one finding
+  /vibecheck-resolve [id]      Mark fixed
+  /vibecheck-scan              Scan existing codebase
+  /vibecheck-report            Open health dashboard
+  /vibecheck-timeline          Activity log
+  /vibecheck-status            Project health overview
+  /vibecheck-skills            Review proposed skills
+  /vibecheck-promote-skill     Promote a proposed skill to active
 
 Model: Claude Haiku · ~$0.001-0.002 per analysis
-.vibeguard/ is in .gitignore. Findings stay local.
+.vibecheck/ is in .gitignore. Findings stay local.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);
 
   if (detectExistingCode(cwd)) {
     console.log(
-      "💡 Existing code detected. Run `npx vibeguard scan` to analyze your history.\n"
+      "💡 Existing code detected. Run `npx github:playgroundparth/VibeCheck scan` to analyze your history.\n"
     );
   }
 
@@ -391,24 +390,24 @@ function wireHooks(claudeDir) {
   const stopHook = {
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibeguard_stop.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibeguard_stop.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_stop.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_stop.py"`,
       async: false, timeout: 60,
     }],
   };
   if (!userSettings.hooks.Stop) userSettings.hooks.Stop = [];
-  if (!userSettings.hooks.Stop.some((h) => JSON.stringify(h).includes("vibeguard_stop"))) {
+  if (!userSettings.hooks.Stop.some((h) => JSON.stringify(h).includes("vibecheck_stop"))) {
     userSettings.hooks.Stop.push(stopHook);
   }
 
   const startHook = {
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibeguard_session_start.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibeguard_session_start.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_session_start.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_session_start.py"`,
       async: false, timeout: 35,
     }],
   };
   if (!userSettings.hooks.SessionStart) userSettings.hooks.SessionStart = [];
-  if (!userSettings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibeguard_session_start"))) {
+  if (!userSettings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibecheck_session_start"))) {
     userSettings.hooks.SessionStart.push(startHook);
   }
 
@@ -416,17 +415,17 @@ function wireHooks(claudeDir) {
     matcher: "Read|Write|Edit|MultiEdit",
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibeguard_post_tool.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibeguard_post_tool.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_post_tool.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_post_tool.py"`,
       async: true,
     }],
   };
   if (!userSettings.hooks.PostToolUse) userSettings.hooks.PostToolUse = [];
-  if (!userSettings.hooks.PostToolUse.some((h) => JSON.stringify(h).includes("vibeguard_post_tool"))) {
+  if (!userSettings.hooks.PostToolUse.some((h) => JSON.stringify(h).includes("vibecheck_post_tool"))) {
     userSettings.hooks.PostToolUse.push(postToolHook);
   }
 
   fs.writeFileSync(userSettingsPath, JSON.stringify(userSettings, null, 2));
-  console.log("✓ Registered hooks in ~/.claude/settings.json");
+  console.log("✓ Registered hooks in ~/.claude/settings.json (global, so worktrees work too)");
 }
 
 function addToClaudeMd(cwd, exists) {
@@ -443,10 +442,10 @@ function addToClaudeMd(cwd, exists) {
 
 After ANY response where you used Write, Edit, or MultiEdit tools, do this at the END of your response — after completing the user's request:
 
-1. Read \`.vibeguard/findings.json\` to get existing findings and next ID
+1. Read \`.vibecheck/findings.json\` to get existing findings and next ID
 2. Read each file you just modified (you know which ones — you edited them this turn)
 3. Check for security issues AND dev tips (rules below)
-4. Write new security findings to \`.vibeguard/findings.json\`
+4. Write new security findings to \`.vibecheck/findings.json\`
 5. Auto-resolve: for each open finding whose file you read, if issue is gone → set \`status:"resolved"\`, add \`resolved_at\`, \`resolution_note:"auto-resolved"\`
 6. Always end your response with a VibeCheck footer (format below)
 
@@ -476,7 +475,7 @@ Footer — be the witty senior dev friend (memes, movie refs ok):
 If issues: \`---\\nVibeCheck: 🔴 N critical · ⚡ N pitfalls · 🧹 N hygiene\\n💡 [dev tip]\`
 If clean: \`---\\nVibeCheck: ✅ [witty one-liner — e.g. "This is the way." / "No issues. Chef's kiss."]\\n💡 [dev tip if applicable]\`
 
-Commands: \`/vg\` · \`/vg-detail <id>\` · \`/vg-resolve <id>\` · \`/vg-status\`
+Commands: \`/vibecheck\` · \`/vibecheck-detail <id>\` · \`/vibecheck-resolve <id>\` · \`/vibecheck-status\`
 `;
   }
 
@@ -500,12 +499,12 @@ Commands: \`/vg\` · \`/vg-detail <id>\` · \`/vg-resolve <id>\` · \`/vg-status
 
 function updateGitignore(cwd) {
   const gitignorePath = path.join(cwd, ".gitignore");
-  const entry = "\n# VibeCheck — local findings, not committed\n.vibeguard/\n";
+  const entry = "\n# VibeCheck — local findings, not committed\n.vibecheck/\n";
   if (fs.existsSync(gitignorePath)) {
     const content = fs.readFileSync(gitignorePath, "utf8");
-    if (!content.includes(".vibeguard")) {
+    if (!content.includes(".vibecheck")) {
       fs.appendFileSync(gitignorePath, entry);
-      console.log("✓ Added .vibeguard/ to .gitignore");
+      console.log("✓ Added .vibecheck/ to .gitignore");
     }
   } else {
     fs.writeFileSync(gitignorePath, entry);

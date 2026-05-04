@@ -10,7 +10,7 @@ import project
 
 args = '$ARGUMENTS'.strip().split(None, 1)
 if not args or not args[0]:
-    print('Usage: /vg-resolve <id> [note]  e.g. /vg-resolve vg-001 fixed')
+    print('Usage: /vibecheck-resolve <id> [note]  e.g. /vibecheck-resolve vg-001 fixed')
     sys.exit(0)
 
 fid = args[0]
@@ -18,10 +18,10 @@ note = args[1] if len(args) > 1 else ''
 
 cwd = project.find_project_root(Path('$ROOT'))
 if not cwd:
-    print('VibGuard not initialized.')
+    print('VibeCheck not initialized.')
     sys.exit(0)
 
-findings_path = cwd / '.vibeguard' / 'findings.json'
+findings_path = cwd / '.vibecheck' / 'findings.json'
 findings = json.loads(findings_path.read_text())
 if isinstance(findings, dict): findings = findings.get('findings', [])
 

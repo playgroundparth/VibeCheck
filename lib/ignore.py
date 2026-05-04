@@ -2,7 +2,7 @@
 """
 VibeCheck ignore patterns.
 
-Reads .vibeguardignore (if present) and merges with sensible defaults.
+Reads .vibecheck-ignore (if present) and merges with sensible defaults.
 Used by project_map (skip during indexing) and file_selection (skip during analysis).
 
 Format is gitignore-like:
@@ -14,7 +14,7 @@ Format is gitignore-like:
 
 Defaults (always applied unless overridden):
   node_modules/, .git/, dist/, build/, .next/, __pycache__/,
-  .venv/, venv/, env/, vendor/, target/, .vibeguard/,
+  .venv/, venv/, env/, vendor/, target/, .vibecheck/,
   graphify-out/, .claude-mem/, .pytest_cache/, .mypy_cache/,
   coverage/, .nyc_output/, .turbo/, .cache/,
   *.lock, *.min.js, *.min.css, *.map
@@ -27,10 +27,10 @@ from typing import List, Optional
 
 # Always-skip patterns — never read, never index, no override.
 ALWAYS_SKIP_DIRS = {
-    "node_modules", ".git", "__pycache__", ".vibeguard",
+    "node_modules", ".git", "__pycache__", ".vibecheck",
 }
 
-# Default skip patterns — overrideable via .vibeguardignore with `!pattern`
+# Default skip patterns — overrideable via .vibecheck-ignore with `!pattern`
 DEFAULT_PATTERNS = [
     # Build artifacts
     "dist/", "build/", ".next/", ".nuxt/", ".turbo/", ".cache/",
@@ -49,7 +49,7 @@ DEFAULT_PATTERNS = [
     "Cargo.lock", "poetry.lock", "Pipfile.lock",
 
     # Docs are intentionally NOT in defaults — they often have important info
-    # (api docs, schema docs, etc). Users add docs/ to .vibeguardignore if they want.
+    # (api docs, schema docs, etc). Users add docs/ to .vibecheck-ignore if they want.
 
     # Common large/binary patterns
     "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.svg",
@@ -61,7 +61,7 @@ DEFAULT_PATTERNS = [
 class IgnoreMatcher:
     """
     Matches paths against gitignore-style patterns.
-    Built from defaults + project's .vibeguardignore (if present).
+    Built from defaults + project's .vibecheck-ignore (if present).
     """
 
     def __init__(self, cwd: Path):
@@ -74,8 +74,8 @@ class IgnoreMatcher:
         for p in DEFAULT_PATTERNS:
             self._add(p, is_negation=False)
 
-        # Apply user overrides from .vibeguardignore
-        ignore_file = self.cwd / ".vibeguardignore"
+        # Apply user overrides from .vibecheck-ignore
+        ignore_file = self.cwd / ".vibecheck-ignore"
         if ignore_file.exists():
             try:
                 content = ignore_file.read_text(encoding="utf-8", errors="ignore")
@@ -170,7 +170,7 @@ class IgnoreMatcher:
         return ignored
 
 
-# Default content for .vibeguardignore on init
+# Default content for .vibecheck-ignore on init
 DEFAULT_VIBEGUARDIGNORE_CONTENT = """# VibeCheck ignore patterns
 # Like .gitignore — patterns to skip during analysis.
 # Defaults are applied automatically (node_modules/, dist/, etc).

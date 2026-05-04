@@ -17,8 +17,8 @@ Each project also gets a human-readable "name" derived from package.json,
 pyproject.toml, etc., for display purposes.
 
 Multi-repo handling:
-  - Per-project: .vibeguard/ inside each repo (data isolation)
-  - Optional global registry: ~/.vibeguard/registry.json (project list only,
+  - Per-project: .vibecheck/ inside each repo (data isolation)
+  - Optional global registry: ~/.vibecheck/registry.json (project list only,
     no findings, no code)
 """
 
@@ -30,15 +30,15 @@ from pathlib import Path
 from typing import Optional, Dict, List
 
 
-GLOBAL_DIR = Path.home() / ".vibeguard"
+GLOBAL_DIR = Path.home() / ".vibecheck"
 GLOBAL_REGISTRY = GLOBAL_DIR / "registry.json"
 
 
-# ─── Project root resolution (walk up to find .vibeguard/) ───────────────────
+# ─── Project root resolution (walk up to find .vibecheck/) ───────────────────
 
 def find_project_root(start: Path) -> Optional[Path]:
     """
-    Walk up from start path until we find a directory containing .vibeguard/.
+    Walk up from start path until we find a directory containing .vibecheck/.
     This means hooks work even if the user cd'd into a subdirectory.
     Returns the project root path, or None if not found.
     """
@@ -48,7 +48,7 @@ def find_project_root(start: Path) -> Optional[Path]:
     fs_root = Path(current.anchor)
 
     while current != fs_root and current != home.parent:
-        if (current / ".vibeguard").is_dir():
+        if (current / ".vibecheck").is_dir():
             return current
         if current.parent == current:  # safety
             break
@@ -62,9 +62,9 @@ def find_project_root(start: Path) -> Optional[Path]:
 def get_project_id(cwd: Path) -> str:
     """
     Return a stable identifier for this project.
-    Cached in .vibeguard/project_id.txt at install time.
+    Cached in .vibecheck/project_id.txt at install time.
     """
-    cache_path = cwd / ".vibeguard" / "project_id.txt"
+    cache_path = cwd / ".vibecheck" / "project_id.txt"
     if cache_path.exists():
         try:
             cached = cache_path.read_text().strip()
@@ -162,7 +162,7 @@ def detect_project_change(cwd: Path) -> Optional[Dict]:
     This is per-machine, not per-process — so it correctly detects when
     the user switches Claude Code from one project to another mid-session.
     """
-    last_path = cwd / ".vibeguard" / "last_session_path.txt"
+    last_path = cwd / ".vibecheck" / "last_session_path.txt"
     current_id = get_project_id(cwd)
 
     if not last_path.exists():

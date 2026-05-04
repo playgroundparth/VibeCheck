@@ -3,7 +3,7 @@
 VibeCheck project map.
 
 A lightweight structural index of the codebase. Built incrementally,
-cached at .vibeguard/project_map.json.
+cached at .vibecheck/project_map.json.
 
 For users WITH graphify installed: we use graphify's graph instead.
 For users WITHOUT: this provides minimum viable structure to do
@@ -142,7 +142,7 @@ def update_map_for_files(cwd: Path, changed_files: List[Path]) -> Dict:
 
 
 def walk_source_files(cwd: Path, matcher: ignore_lib.IgnoreMatcher = None):
-    """Yield source file paths, respecting .vibeguardignore."""
+    """Yield source file paths, respecting .vibecheck-ignore."""
     if matcher is None:
         matcher = ignore_lib.IgnoreMatcher(cwd)
 

@@ -30,7 +30,7 @@ STATUSES = {"open", "resolved", "snoozed"}
 # ─── Path helpers ─────────────────────────────────────────────────────────────
 
 def vg_dir(cwd: Path) -> Path:
-    return cwd / ".vibeguard"
+    return cwd / ".vibecheck"
 
 def findings_path(cwd: Path) -> Path:
     return vg_dir(cwd) / "findings.json"

@@ -2,7 +2,7 @@
 """
 VibeCheck health report generator.
 
-Generates a static HTML file (.vibeguard/health-report.html) the user can
+Generates a static HTML file (.vibecheck/health-report.html) the user can
 open in any browser. Shows:
   - Project info
   - Findings dashboard (counts, severity breakdown)

@@ -10,10 +10,10 @@ import project, store
 
 cwd = project.find_project_root(Path('$ROOT'))
 if not cwd or not store.is_initialized(cwd):
-    print('VibGuard not initialized in this project.')
+    print('VibeCheck not initialized in this project.')
     sys.exit(0)
 
-findings_path = cwd / '.vibeguard' / 'findings.json'
+findings_path = cwd / '.vibecheck' / 'findings.json'
 findings = json.loads(findings_path.read_text()) if findings_path.exists() else []
 if isinstance(findings, dict): findings = findings.get('findings', [])
 
@@ -27,7 +27,7 @@ icons = {'CRITICAL': '🔴', 'PITFALL': '⚡', 'HYGIENE': '🧹', 'GOOD_TO_HAVE'
 order = ['CRITICAL', 'PITFALL', 'HYGIENE', 'GOOD_TO_HAVE']
 parts = [f\"{icons[s]} {by_sev[s]} {s.lower().replace('_',' ')}\" for s in order if s in by_sev]
 summary = ' · '.join(parts) if parts else 'no open findings'
-print(f'[VibGuard] {summary}')
-print('Commands: /vg · /vg-detail · /vg-resolve · /vg-report · /vg-scan')
+print(f'[VibeCheck] {summary}')
+print('Commands: /vibecheck · /vibecheck-detail · /vibecheck-resolve · /vibecheck-report · /vibecheck-scan')
 "
 ```

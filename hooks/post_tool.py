@@ -3,7 +3,7 @@
 VibeCheck PostToolUse Hook.
 
 Fires after Read/Write/Edit/MultiEdit tool calls.
-Extracts security-relevant project facts into .vibeguard/project_context.json.
+Extracts security-relevant project facts into .vibecheck/project_context.json.
 Zero LLM calls — pure regex. Must complete in < 100ms.
 """
 import json, os, sys
@@ -21,7 +21,7 @@ SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
 def debug_log(cwd, msg):
     if DEBUG:
         try:
-            with open(cwd / ".vibeguard" / "debug.log", "a") as f:
+            with open(cwd / ".vibecheck" / "debug.log", "a") as f:
                 f.write(f"[post] {msg}\n")
         except Exception:
             pass

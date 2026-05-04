@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * vibeguard scan
+ * vibecheck scan
  * One-time scan of an existing codebase.
  * Shows cost estimate, lets user pick model + depth, then runs.
  */
@@ -47,10 +47,10 @@ function estimateCost(model, files) {
 
 async function main() {
   const cwd = process.cwd();
-  const vgDir = path.join(cwd, ".vibeguard");
+  const vgDir = path.join(cwd, ".vibecheck");
 
   if (!fs.existsSync(vgDir)) {
-    console.error("❌ VibeGuard not initialized.\n   Run: node vibeguard/bin/cli.js init");
+    console.error("❌ VibeCheck not initialized.\n   Run: npx github:playgroundparth/VibeCheck init");
     process.exit(1);
   }
 
@@ -68,7 +68,7 @@ async function main() {
 
   // Model selection
   console.log(`
-🛡️  VibeGuard Scan
+🛡️  VibeCheck Scan
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Source files found: ~${fileCount || "unknown"}
 
@@ -116,15 +116,15 @@ Checks: auth, payments, database, routes, secrets,
 
   const confirmed = await confirm("Run scan? (yes/no): ");
   if (!confirmed) {
-    console.log("\nCancelled. Type /vg-scan inside Claude Code to run from there.");
+    console.log("\nCancelled. Type /vibecheck-scan inside Claude Code to run from there.");
     process.exit(0);
   }
 
   console.log("\nStarting scan...");
-  await runWithSpinner(cwd, vgDir, model, depthKey, filesToRead);
+  await runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead);
 }
 
-function runWithSpinner(cwd, vgDir, model, depthKey, filesToRead) {
+function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
   return new Promise((resolve) => {
     const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     let i = 0;
@@ -152,7 +152,7 @@ function runWithSpinner(cwd, vgDir, model, depthKey, filesToRead) {
       console.error(
         "❌ `claude` CLI not found.\n" +
         "   Fix: echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.zshrc && source ~/.zshrc\n" +
-        "   Or run /vg-scan inside an active Claude Code session."
+        "   Or run /vibecheck-scan inside an active Claude Code session."
       );
       process.exit(1);
     }
@@ -165,8 +165,8 @@ function runWithSpinner(cwd, vgDir, model, depthKey, filesToRead) {
       claudeBin,
       [
         "-p",
-        `Run a full VibeGuard scan of this codebase. ${depthInstruction} Analyze for all finding types: security risks, pitfalls, testing gaps, hygiene issues. Write findings to .vibeguard/findings.json`,
-        "--agent", "vibeguard-scanner",
+        `Run a full VibeCheck scan of this codebase. ${depthInstruction} Analyze for all finding types: security risks, pitfalls, testing gaps, hygiene issues. Write findings to .vibecheck/findings.json`,
+        "--agent", "vibecheck-scanner",
         "--model", model.id,
         "--dangerously-skip-permissions",
       ],
@@ -229,7 +229,7 @@ function runWithSpinner(cwd, vgDir, model, depthKey, filesToRead) {
         if (hygiene)  parts.push(`🧹 ${hygiene} hygiene`);
         if (good)     parts.push(`💡 ${good} suggestion${good !== 1 ? "s" : ""}`);
         console.log(`Found: ${parts.join(" · ")}\n`);
-        console.log(`Type \`/vg\` inside Claude Code to review with fix prompts.`);
+        console.log(`Type \`/vibecheck\` inside Claude Code to review with fix prompts.`);
       } else {
         console.log("No findings. Your codebase looks clean.");
       }

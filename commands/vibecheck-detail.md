@@ -10,15 +10,15 @@ import project
 
 fid = '$ARGUMENTS'.strip()
 if not fid:
-    print('Usage: /vg-detail <id>  e.g. /vg-detail vg-001')
+    print('Usage: /vibecheck-detail <id>  e.g. /vibecheck-detail vg-001')
     sys.exit(0)
 
 cwd = project.find_project_root(Path('$ROOT'))
 if not cwd:
-    print('VibGuard not initialized.')
+    print('VibeCheck not initialized.')
     sys.exit(0)
 
-findings = json.loads((cwd / '.vibeguard' / 'findings.json').read_text())
+findings = json.loads((cwd / '.vibecheck' / 'findings.json').read_text())
 if isinstance(findings, dict): findings = findings.get('findings', [])
 
 f = next((x for x in findings if x.get('id') == fid), None)
@@ -35,6 +35,6 @@ if f.get('why'): print(f\"Why it matters:\n{f['why']}\n\")
 if f.get('details'): print(f\"Detail:\n{f['details']}\n\")
 if f.get('fix_prompt'): print(f\"Fix — paste to Claude:\n{f['fix_prompt']}\n\")
 print(f\"Status: {f.get('status','open')} | Source: {f.get('source','')} | Detected: {f.get('detected_at','')[:10]}\")
-print(f\"\nResolve with: /vg-resolve {fid}\")
+print(f\"\nResolve with: /vibecheck-resolve {fid}\")
 "
 ```

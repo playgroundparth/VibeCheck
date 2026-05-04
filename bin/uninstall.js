@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * vibeguard uninstall
+ * vibecheck uninstall
  *
  * Cleanly removes VibeCheck from a project:
  *   - Removes hooks from .claude/settings.json
- *   - Deletes .claude/hooks/vibeguard_*.py and .claude/hooks/lib/ VibeCheck files
+ *   - Deletes .claude/hooks/vibecheck_*.py and .claude/hooks/lib/ VibeCheck files
  *   - Deletes .claude/commands/vibecheck*.md
  *   - Strips VibeCheck sections from CLAUDE.md
  *   - Removes from global registry if registered
- *   - Optionally removes .vibeguard/ data (--keep-data to preserve)
+ *   - Optionally removes .vibecheck/ data (--keep-data to preserve)
  */
 
 import fs from "fs";
@@ -21,7 +21,7 @@ const yes = process.argv.includes("--yes");
 
 const cwd = process.cwd();
 const claudeDir = path.join(cwd, ".claude");
-const vgDir = path.join(cwd, ".vibeguard");
+const vgDir = path.join(cwd, ".vibecheck");
 
 if (!fs.existsSync(vgDir)) {
   console.log("VibeCheck is not installed in this project.");
@@ -31,7 +31,7 @@ if (!fs.existsSync(vgDir)) {
 console.log("\n🗑️  VibeCheck uninstall\n");
 console.log(`  Project: ${cwd}`);
 if (keepData) {
-  console.log("  Mode: remove hooks/commands only (--keep-data: preserving .vibeguard/)");
+  console.log("  Mode: remove hooks/commands only (--keep-data: preserving .vibecheck/)");
 } else {
   console.log("  Mode: full removal (use --keep-data to preserve findings history)");
 }
@@ -66,7 +66,7 @@ if (fs.existsSync(globalSettingsPath)) {
 }
 
 // 2. Remove hook files
-const hookFiles = ["vibeguard_stop.py", "vibeguard_session_start.py", "vibeguard_post_tool.py"];
+const hookFiles = ["vibecheck_stop.py", "vibecheck_session_start.py", "vibecheck_post_tool.py"];
 const hooksDir = path.join(claudeDir, "hooks");
 for (const f of hookFiles) {
   const p = path.join(hooksDir, f);
@@ -127,7 +127,7 @@ if (fs.existsSync(claudeMdPath)) {
 }
 
 // 5. Remove from global registry
-const registryPath = path.join(os.homedir(), ".vibeguard", "registry.json");
+const registryPath = path.join(os.homedir(), ".vibecheck", "registry.json");
 if (fs.existsSync(registryPath)) {
   try {
     const reg = JSON.parse(fs.readFileSync(registryPath, "utf8"));
@@ -139,19 +139,19 @@ if (fs.existsSync(registryPath)) {
     if (Object.keys(projects).length < before) {
       reg.projects = projects;
       fs.writeFileSync(registryPath, JSON.stringify(reg, null, 2));
-      removed.push("~/.vibeguard/registry.json (project removed)");
+      removed.push("~/.vibecheck/registry.json (project removed)");
     }
   } catch {}
 }
 
-// 6. Remove .vibeguard/ unless --keep-data
+// 6. Remove .vibecheck/ unless --keep-data
 if (!keepData) {
   if (fs.existsSync(vgDir)) {
     fs.rmSync(vgDir, { recursive: true });
-    removed.push(".vibeguard/");
+    removed.push(".vibecheck/");
   }
 } else {
-  skipped.push(".vibeguard/ (preserved — your findings history is intact)");
+  skipped.push(".vibecheck/ (preserved — your findings history is intact)");
 }
 
 // Summary
@@ -163,7 +163,7 @@ if (skipped.length > 0) {
 }
 console.log("\nVibeCheck uninstalled. Restart Claude Code to clear any cached session state.");
 if (keepData) {
-  console.log("Your findings are in .vibeguard/ if you ever want them back.");
+  console.log("Your findings are in .vibecheck/ if you ever want them back.");
 }
 console.log();
 
@@ -180,7 +180,7 @@ function removeVibeCheckHooks(settingsPath) {
       const before = hooks[event].length;
       hooks[event] = hooks[event].filter(entry => {
         const cmd = (entry.hooks || []).map(h => h.command || "").join(" ");
-        return !cmd.includes("vibeguard");
+        return !cmd.includes("vibecheck");
       });
       if (hooks[event].length < before) changed = true;
       // Clean up empty event arrays
