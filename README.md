@@ -119,6 +119,16 @@ VibeCheck also tells Claude to capture important context before responding — a
 
 VibeCheck's inline analysis runs inside the same Claude session — no extra API calls, no extra cost. The only optional cost is the static check subprocess (Python, runs in <100ms).
 
+## Updating
+
+When a new version is released, run this in your project to pull in the latest hooks, lib, and commands:
+
+```bash
+npx github:playgroundparth/VibeCheck update
+```
+
+This re-copies only the VibeCheck files into `.claude/` — your `.vibeguard/` findings, `CLAUDE.md`, and `settings.json` are never touched. Restart Claude Code after updating.
+
 ## Uninstall
 
 ```bash

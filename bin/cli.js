@@ -12,6 +12,8 @@ if (!command || command === "init") {
   await import("./init.js");
 } else if (command === "uninstall") {
   await import("./uninstall.js");
+} else if (command === "update") {
+  await import("./update.js");
 } else if (command === "scan") {
   await import("./scan.js");
 } else if (command === "list") {
@@ -33,6 +35,7 @@ VibeCheck — background safety agent for vibe coders
 
 Setup:
   npx vibeguard init              Set up VibeCheck in this project
+  npx vibeguard update            Update hooks and lib to latest version
   npx vibeguard uninstall         Remove VibeCheck from this project
   npx vibeguard uninstall --keep-data   Remove hooks but keep .vibeguard/ findings
   npx vibeguard scan              Scan existing codebase for risks
