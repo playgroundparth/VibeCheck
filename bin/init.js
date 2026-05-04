@@ -382,6 +382,17 @@ function wireHooks(claudeDir) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 
   // Wire hooks into ~/.claude/settings.json
+  // NOTE: Hooks must live in the user-level settings file to fire from git worktrees.
+  // A project-level .claude/settings.json is ignored by Claude Code in worktrees because
+  // the worktree checkout doesn't have .claude/ — only the main worktree does.
+  // The hooks are self-guarding: they check for .claude/hooks/vibecheck_*.py at the
+  // git root before doing anything, so they silently no-op in non-VibeCheck projects.
+  console.log();
+  console.log("⚠️  VibeCheck writes hooks to ~/.claude/settings.json (your user-level config).");
+  console.log("   This is required for hooks to fire in git worktrees.");
+  console.log("   The hooks check for VibeCheck before running — they no-op in other projects.");
+  console.log("   To remove them later: npx vibecheck uninstall  (from this project)");
+  console.log();
   const userSettingsPath = path.join(os.homedir(), ".claude", "settings.json");
   let userSettings = {};
   if (fs.existsSync(userSettingsPath)) {

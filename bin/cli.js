@@ -16,6 +16,8 @@ if (!command || command === "init") {
   await import("./update.js");
 } else if (command === "scan") {
   await import("./scan.js");
+} else if (command === "doctor") {
+  await import("./doctor.js");
 } else if (command === "list") {
   showProjectList(flags.includes("--prune"));
 } else if (command === "status") {
@@ -39,6 +41,7 @@ Setup:
   npx vibecheck uninstall         Remove VibeCheck from this project
   npx vibecheck uninstall --keep-data   Remove hooks but keep .vibecheck/ findings
   npx vibecheck scan              Scan existing codebase for risks
+  npx vibecheck doctor            Check installation health
   npx vibecheck status            Show health metrics for this project
 
 Multi-project (if global registry enabled):
