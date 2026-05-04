@@ -1,0 +1,39 @@
+{
+  "name": "vibecheck",
+  "version": "0.1.0",
+  "description": "Security analysis agent for vibe coders using Claude Code. Flags real risks inline, same response, no waiting.",
+  "type": "module",
+  "bin": {
+    "vibecheck": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "files": [
+    "bin/",
+    "hooks/",
+    "lib/",
+    "agents/",
+    "commands/",
+    "CLAUDE.template.md",
+    "vibecheck.md",
+    "README.md"
+  ],
+  "keywords": [
+    "vibe-coding",
+    "claude-code",
+    "ai-safety",
+    "claude",
+    "security",
+    "code-review",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fission-AI/VibeCheck"
+  }
+}
