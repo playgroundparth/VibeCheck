@@ -26,7 +26,7 @@ Type `/vibecheck`:
 ## Setup
 
 ```bash
-npx vibecheck init
+npx github:playgroundparth/VibeCheck init
 ```
 
 That's it. VibeCheck is now active. Restart Claude Code once after running init.
@@ -34,7 +34,7 @@ That's it. VibeCheck is now active. Restart Claude Code once after running init.
 **For existing codebases:**
 
 ```bash
-npx vibecheck scan
+npx github:playgroundparth/VibeCheck scan
 ```
 
 ## Requirements
@@ -101,8 +101,8 @@ VibeCheck's inline analysis runs inside the same Claude session — no extra API
 ## Uninstall
 
 ```bash
-npx vibecheck uninstall          # full removal
-npx vibecheck uninstall --keep-data   # remove hooks, keep findings history
+npx github:playgroundparth/VibeCheck uninstall          # full removal
+npx github:playgroundparth/VibeCheck uninstall --keep-data   # remove hooks, keep findings history
 ```
 
 ## Privacy
