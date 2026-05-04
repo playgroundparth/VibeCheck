@@ -117,13 +117,12 @@ Apply your judgment to find real problems. Categories below — but the categori
 
 ## Severity decision rule — apply this first
 
-Ask: **could a bad actor exploit this, or could it cause data loss/corruption in production?**
-- Yes → CRITICAL, regardless of how "minor" the code change looks
-- No → PITFALL, HYGIENE, or GOOD_TO_HAVE
+**CRITICAL**: concrete exploit OR code that will definitely crash or corrupt data in production.
+**PITFALL**: works today, causes pain later — includes architectural traps AND decision-level mistakes (overbuilding, reinventing, wrong abstraction, cross-file inconsistency).
+**HYGIENE**: missing something that should be there (tests, error handling).
+**GOOD_TO_HAVE**: minor nudge to working, safe code.
 
-**CRITICAL is not reserved for "obvious" security holes.** Webhook without signature verification, path traversal via user input, unverified JWT, missing auth on a data route — all CRITICAL even if the code "looks fine."
-
-**PITFALL is not a downgrade for security issues.** Never use PITFALL for something that can be exploited. PITFALL = architectural trap with no security implication.
+**PITFALL is not a downgrade for security issues.** Never use PITFALL for something that can be exploited. If it's exploitable → CRITICAL.
 
 ## CRITICAL — flag with specific file+line evidence
 
@@ -136,23 +135,37 @@ If ANY of these are true, severity is CRITICAL:
 - API response includes fields the requester shouldn't see
 - Secrets or credentials hardcoded in source (not env var)
 - Silent failure in a security-critical flow (auth, payment, data integrity)
+- Logic that will definitely crash or corrupt data in production (wrong condition on a write, off-by-one on deletion, missing null check on a field that will be null in real usage)
 
-## PITFALL — vibe-coder traps (no security implication)
+## PITFALL — traps and decision mistakes
 
-**Reinventing existing solutions:** custom auth/JWT (vs Supabase/Clerk), custom email (vs Resend), custom file storage (vs S3/R2), custom queues, custom search.
+**OVERBUILDING** — complexity that exceeds what this stage of the project needs:
+- Caching before load testing shows it's needed
+- Microservices architecture for a solo/small project
+- Abstraction layers with only one implementor
+Only flag with clear evidence the complexity exceeds the current need.
+
+**REINVENTING** — building something that already exists and works better:
+- Custom auth/JWT (vs Supabase/Clerk/Auth.js)
+- Custom email sending (vs Resend/Postmark)
+- Custom file storage (vs S3/R2/Cloudinary)
+- Custom queues, custom search
 Only flag if the DIY implementation is non-trivial AND clearly substitutable.
 
-**Over-indexing on complexity:** caching before scale is proven, premature microservices, optimization before correctness.
-Only flag with clear evidence the complexity exceeds need.
+**WRONG ABSTRACTION** — structure that will resist the next obvious change:
+- Wrong layer (business logic in a route handler, DB queries in the UI layer)
+- Interface that can't grow (one-method interface locked to implementation detail)
+Only flag when you can state specifically what the next change will be and why the structure fights it.
 
 **Building on broken foundations:** new feature on broken code, scaling before validation.
+
+**Cross-file inconsistency** — item added to a collection but installer, uninstaller, or update list not synced. Only flag if you read the maintenance file and confirmed the gap.
 
 ## HYGIENE — repo health
 
 - **Tests missing for what was just built** (always check this — see Step 4)
 - README drift (major feature added but no mention)
 - Unhandled async errors (await without try/catch in a path that can fail)
-- Functions >60 lines with complex logic, no comments
 
 ## GOOD_TO_HAVE — minor improvements only
 
@@ -161,35 +174,34 @@ Use GOOD_TO_HAVE for small improvements to working, safe code:
 - Input validation on user-facing forms
 - Loading/error states in UI
 
-**Do NOT use GOOD_TO_HAVE to praise the codebase.** If something is done well, do not create a finding for it at all — just skip it. Findings are problems, not compliments. If you have nothing actionable to say, write nothing.
+**Do NOT use GOOD_TO_HAVE to praise the codebase.** Findings are problems, not compliments. If you have nothing actionable to say, write nothing.
 
 ## Severity classification — examples
 
-Use these examples to calibrate. When uncertain, match to the closest example.
-
 **CRITICAL examples:**
-- Webhook endpoint accepts POST requests and processes them without verifying a signature or shared secret → CRITICAL. An attacker can forge payment events, trigger admin actions, etc.
-- `const filePath = path.join(uploadDir, req.body.filename)` — user-controlled filename used in a file path without sanitization → CRITICAL. Path traversal allows reading any file on the server.
-- JWT decoded and user role read from the token payload, but signature never verified → CRITICAL. Anyone can forge admin tokens.
-- API endpoint returns all user records when called with any valid session → CRITICAL. Data leak.
+- Webhook endpoint accepts POST requests without verifying a signature → CRITICAL. Attacker can forge payment events.
+- `const filePath = path.join(uploadDir, req.body.filename)` — user-controlled filename → CRITICAL. Path traversal.
+- JWT decoded but signature never verified → CRITICAL. Anyone can forge admin tokens.
+- API endpoint returns all user records with any valid session → CRITICAL. Data leak.
+- `if (user.role = "admin")` (assignment not comparison) in an auth check → CRITICAL. Everyone becomes admin.
 
-**PITFALL examples (not exploitable, but a trap):**
-- Custom JWT implementation using `crypto.createHmac` instead of using a library like `jsonwebtoken` or delegating to Supabase → PITFALL. Custom crypto is risky but not currently exploitable if done correctly.
-- API keys read from `process.env` in test files, but tests only run locally and the key is never logged or leaked → PITFALL at most, often should be dropped entirely.
-- Caching layer added before load testing shows it's needed → PITFALL (premature optimization).
+**PITFALL examples:**
+- Custom JWT using `crypto.createHmac` instead of a library → PITFALL (REINVENTING). Risky, not currently exploitable if done correctly.
+- Caching layer added before load testing shows it's needed → PITFALL (OVERBUILDING).
+- New command file added to the commands/ directory, but uninstall.js command cleanup list not updated → PITFALL (cross-file inconsistency). Confirmed by reading uninstall.js.
 
-**HYGIENE examples (repo health, not security):**
-- New payment flow added, no test file exists for it → HYGIENE.
-- `await db.query(...)` inside a loop, no try/catch → HYGIENE (unhandled async error).
-- README mentions old API endpoints that no longer exist → HYGIENE.
+**HYGIENE examples:**
+- New payment flow added, no test file → HYGIENE.
+- `await db.query(...)` in a loop, no try/catch → HYGIENE.
 
 **DROP entirely — do not write a finding:**
-- Large file that could be refactored into smaller modules → DROP.
-- Function is 80 lines, could be split → DROP.
-- Missing JSDoc or inline comments → DROP.
-- Variable naming could be clearer → DROP.
-- Console.log statements in production code → DROP (HYGIENE at most, only if they leak secrets).
-- "This approach is unconventional but works" → DROP.
+- Large file that could be refactored → DROP.
+- Function is 80 lines → DROP.
+- Missing JSDoc or comments → DROP.
+- Variable naming → DROP.
+- Console.log in production → DROP (unless leaking secrets).
+- "Unconventional but works" → DROP.
+- Cross-file gap you haven't confirmed by reading the other file → DROP.
 
 # Step 3b — Re-verify existing open findings
 

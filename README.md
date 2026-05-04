@@ -1,6 +1,8 @@
 # VibeCheck
 
-A security analysis agent for vibe coders using Claude Code. Watches what you build, flags real risks in plain English, and gives you paste-ready fixes — all inline, same response, no waiting.
+Build with AI — without second-guessing every decision.
+
+VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no extra cost.
 
 ## What it looks like
 
@@ -8,20 +10,44 @@ After Claude finishes a task, at the bottom of the same response:
 
 ```
 ---
-VibeCheck: 🔴 1 critical · ⚡ 1 pitfall
-💡 No tests here — if this breaks in prod, you'll be debugging blind.
+VibeCheck: ⚠️ OK for MVP, not prod  · ⚡ 1 pitfall
+🧪 Before shipping: test that uninstall removes all command files, not just the original set
+💡 You added to a collection in 3 places but the cleanup list only has the original 5.
+```
+
+Or when there's a real problem:
+
+```
+---
+VibeCheck: ❌ Fix before shipping  · 🔴 1 critical
+🧪 Before shipping: test the webhook endpoint with a forged signature — it should reject it
+```
+
+Or when it's clean:
+
+```
+---
+VibeCheck: ✅ Safe to continue
+🧪 Before shipping: confirm the new route returns 401 for unauthenticated requests
 ```
 
 Type `/vibecheck`:
 
 ```
-🔴 vg-001 — Anyone can access /dashboard without logging in
-   Why: users can see each other's data without authenticating
+⚡ vg-001 — Command files added but uninstall list not updated
+   Why: uninstall.js will leave vibecheck-skills.md and 2 others behind after removal
    Fix → paste into Claude:
-   "Add an auth check at the top of the dashboard route. Use the same
-    pattern already in src/middleware/auth.ts — requireAuth() before
-    any data is returned."
+   "In uninstall.js, add vibecheck-skills.md, vibecheck-promote-skill.md, and
+    vibecheck-model.md to the commandFiles array on line 105."
 ```
+
+## The five questions VibeCheck answers
+
+1. **Am I doing this right?** — catches wrong abstractions, reinvented wheels, approaches that will fight you later
+2. **Am I overengineering this?** — flags complexity that exceeds what your current stage needs
+3. **Is this safe for production?** — catches auth gaps, SQL injection, hardcoded secrets, missing webhook verification
+4. **Am I missing something obvious?** — cross-file consistency, missing migrations, callers not updated
+5. **What should I fix before I ship?** — specific `🧪 Before shipping:` line every time, not generic advice
 
 ## Setup
 
@@ -47,7 +73,7 @@ Or type `/vibecheck-scan` inside Claude Code. Going forward, VibeCheck runs auto
 
 ## How it works
 
-VibeCheck adds a section to your `CLAUDE.md` that tells Claude to run security analysis at the end of every response where files were changed. No subprocess, no background agent, no waiting — Claude reads the files it just wrote and checks them inline.
+VibeCheck adds a section to your `CLAUDE.md` that tells Claude to run a judgment pass at the end of every response where files were changed. Claude reads the files it just modified — and up to 2 related "maintenance files" (cleanup scripts, install lists, caller files) — then gives you a verdict, a specific test to run, and any findings worth tracking.
 
 It also installs three hooks:
 
@@ -56,6 +82,18 @@ It also installs three hooks:
 - **PostToolUse hook** — silently extracts project facts (auth provider, ORM, webhook setup) from files as they're read or written
 
 All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
+
+## Verdicts
+
+Every VibeCheck footer ends with one of three verdicts:
+
+| Verdict | Meaning |
+|---------|---------|
+| `✅ Safe to continue` | No blocking issues — keep building |
+| `⚠️ OK for MVP, not prod` | Architectural concern, overbuilding, or cross-file gap — fine for now, fix before real users |
+| `❌ Fix before shipping` | Security vulnerability or correctness bug — stop and fix this |
+
+The verdict is a holistic judgment, not a mechanical count.
 
 ## Commands
 
@@ -66,7 +104,12 @@ All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves yo
 | `/vibecheck-resolve vg-001` | Mark as resolved |
 | `/vibecheck-scan` | Run a one-time scan of your codebase |
 | `/vibecheck-status` | Health metrics — findings, resolution rate, cost |
+| `/vibecheck-timeline` | Activity log — what changed and when |
 | `/vibecheck-report` | Generate a full HTML health dashboard |
+| `/vibecheck-skills` | Review proposed skills |
+| `/vibecheck-promote-skill` | Promote a proposed skill to active |
+| `/vibecheck-model haiku\|sonnet` | Switch analyzer model |
+| `/vibecheck-doctor` | Check installation health |
 
 ## Health report
 
@@ -90,18 +133,22 @@ VibeCheck detects these automatically during `init` and uses them if present —
 
 ## What VibeCheck catches
 
-**Critical** — flags only when there's a concrete exploit:
+**Critical** — flags only when there's a concrete exploit or definite breakage:
 - Route handles user data without an auth check
 - User input in a database query (SQL injection)
 - User-controlled path in file read/write (path traversal)
 - Webhook/payment endpoint without signature verification
 - API response leaks data the caller shouldn't see
 - Secret or credential hardcoded in source
+- Logic that will definitely crash or corrupt data in production
 
-**Pitfall** — architectural traps, not immediately exploitable:
-- In-memory rate limiting or counters (won't survive restarts)
-- Custom auth/JWT instead of using a library
-- New feature built on top of code that is already broken
+**Pitfall** — architectural and decision traps, not immediately exploitable:
+- OVERBUILDING — complexity that exceeds what this stage of the project needs
+- REINVENTING — building something that already exists and works better (custom JWT, custom email, custom queues)
+- WRONG ABSTRACTION — structure that will resist the next obvious change
+- Cross-file inconsistency — added to a collection but forgot to update cleanup/install lists
+- In-memory state that won't survive restarts
+- New feature built on top of broken code
 
 **Hygiene**:
 - Non-trivial feature with no test file
@@ -112,14 +159,6 @@ VibeCheck detects these automatically during `init` and uses them if present —
 - Missing input validation on user-facing forms
 
 **Never reported**: code style, naming, console.log, large files, anything already in existing findings.
-
-## Context capture
-
-VibeCheck also tells Claude to capture important context before responding — architecture decisions, errors resolved, user preferences. This is stored in `.vibecheck/context_log.jsonl` and injected into every new session so Claude remembers what matters across conversations.
-
-## Cost
-
-VibeCheck's inline analysis runs inside the same Claude session — no extra API calls, no extra cost. The only optional cost is the static check subprocess (Python, runs in <100ms).
 
 ## Updating
 
@@ -137,6 +176,14 @@ This re-copies only the VibeCheck files into `.claude/` — your `.vibecheck/` f
 npx github:playgroundparth/VibeCheck uninstall          # full removal
 npx github:playgroundparth/VibeCheck uninstall --keep-data   # remove hooks, keep findings history
 ```
+
+## Checking your installation
+
+```bash
+npx github:playgroundparth/VibeCheck doctor
+```
+
+Reports pass/warn/fail for every component: hook files, lib files, commands, global settings registration, CLAUDE.md section, Python availability.
 
 ## Privacy
 
