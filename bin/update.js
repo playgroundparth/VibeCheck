@@ -71,6 +71,8 @@ for (const [src, dst] of hookFiles) {
 const commandFiles = [
   "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
   "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
+  "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
+  "vibecheck-model.md",
 ];
 const commandsDir = path.join(claudeDir, "commands");
 fs.mkdirSync(commandsDir, { recursive: true });

@@ -9,7 +9,7 @@ the inline VibeCheck analysis required by CLAUDE.md.
 import json, os, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-import store, static_checks, guardrails, project, metrics, telemetry
+import store, static_checks, guardrails, project, metrics, telemetry, patterns
 
 DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
 
@@ -67,6 +67,22 @@ def main():
                                   "severity": f["severity"], "title": f["title"], "source": "static"})
             telemetry.track_finding_added(cfg, f["severity"])
     debug_log(cwd, f"Static: {len(static_findings)} findings in {int(((__import__('time').time()-t0)*1000))}ms")
+
+    # Run pattern triggers (deterministic, no LLM). Promotes patterns via increment_fired().
+    try:
+        pattern_fires = patterns.evaluate_triggers(cwd, changed_files)
+        if pattern_fires:
+            store.log_event(cwd, {
+                "type": "patterns_fired",
+                "count": len(pattern_fires),
+                "names": [f["pattern"]["name"] for f in pattern_fires],
+            })
+        # Prune stale patterns periodically (1-in-10 chance per run to avoid overhead)
+        import random
+        if random.random() < 0.1:
+            patterns.prune_stale_patterns(cwd)
+    except Exception:
+        pass
 
     # Emit a reminder in case Claude skipped the inline VibeCheck step.
     # If Claude already did VibeCheck (CLAUDE.md followed), it will say so briefly.

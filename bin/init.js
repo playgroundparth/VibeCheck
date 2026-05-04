@@ -150,14 +150,19 @@ async function main() {
   );
   console.log("✓ Installed skill → .claude/skills/vibecheck.md");
 
-  // Copy slash commands (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status)
+  // Copy slash commands
   const commandsDir = path.join(claudeDir, "commands");
   fs.mkdirSync(commandsDir, { recursive: true });
-  const commandFiles = ["vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md", "vibecheck-scan.md", "vibecheck-status.md"];
+  const commandFiles = [
+    "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
+    "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
+    "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
+    "vibecheck-model.md",
+  ];
   for (const f of commandFiles) {
     copyFile(path.join(VIBEGUARD_ROOT, "commands", f), path.join(commandsDir, f));
   }
-  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status)");
+  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status, /vibecheck-report, /vibecheck-timeline, /vibecheck-skills, /vibecheck-model)");
 
   // Copy hooks
   copyFile(
