@@ -31,11 +31,13 @@ npx github:playgroundparth/VibeCheck init
 
 That's it. VibeCheck is now active. Restart Claude Code once after running init.
 
-**For existing codebases:**
+**If you have existing code** (not starting from scratch), also run this after init to scan your history for risks:
 
 ```bash
 npx github:playgroundparth/VibeCheck scan
 ```
+
+Or type `/vibecheck-scan` inside Claude Code. Going forward, VibeCheck runs automatically after every change — the scan is a one-time catch-up.
 
 ## Requirements
 
