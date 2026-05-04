@@ -82,9 +82,9 @@ VibeCheck detects these automatically during `init` and uses them if present —
 
 **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — if you have OpenSpec active, VibeCheck cross-references your API specs when analyzing routes. It can flag when a new endpoint isn't in the spec, or when implementation diverges from the declared contract.
 
-**[ICM](https://github.com/Fission-AI/ICM)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibeguard/context_log.jsonl`.
+**[ICM](https://github.com/rtk-ai/icm)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibeguard/context_log.jsonl`.
 
-**[Graphify](https://github.com/Fission-AI/Graphify)** — if you have a Graphify code graph, VibeCheck uses it to understand blast radius when files change (which other files are affected), improving which files it chooses to analyze.
+**[Graphify](https://graphify.net/)** — if you have a Graphify code graph, VibeCheck uses it to understand blast radius when files change (which other files are affected), improving which files it chooses to analyze.
 
 ## What VibeCheck catches
 
