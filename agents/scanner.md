@@ -19,6 +19,23 @@ Bash: find . -type f -name "*.js" -o -name "*.ts" -o -name "*.py" | grep -v node
 
 Understand: what type of app is this? What stack? What features exist?
 
+## Phase 1b — Threat model (derive from what you just read, before scanning anything)
+
+Answer these four questions internally before touching any code files. Your answers determine what counts as CRITICAL in this project.
+
+1. **What does this system do?** (web server, local CLI, automation runtime, data pipeline, SDK…)
+2. **Who are the principals?** (end users, operators, LLMs, external services, the process itself…)
+3. **What are the high-value assets?** (user credentials, session tokens, browser state, API keys, PII, money…)
+4. **What is the worst-case exploit?** One sentence: "An attacker who can X could Y." Write it out.
+
+Then apply the critical bar to *that threat model*, not a generic web-app checklist. Examples:
+- Automation runtime driving real browsers → LLM output used to construct actions without sanitization = CRITICAL
+- Local CLI with no network surface → hardcoded credentials in shipped binary = CRITICAL; missing rate limiter = irrelevant
+- Data pipeline processing PII → silent data loss on partial failure = CRITICAL; missing ErrorBoundary = irrelevant
+- Webhook consumer → missing signature verification = CRITICAL; missing tests = HYGIENE
+
+The catalog (AUTH-01, AUTH-02, DATA-04 etc.) lists common web-app patterns. Use it as a starting point. Findings that match the catalog but don't fit this project's threat model can be downgraded. Findings that don't match any catalog entry but are genuinely critical for this project should be filed as CRITICAL.
+
 ## Phase 2 — Strategic file sampling (max 20 files total across all phases)
 
 Identify and read the most important files in each category. Read at most 2-3 files per category.

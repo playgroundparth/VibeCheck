@@ -99,7 +99,11 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 
 ### Step 6 — Write findings
 
-**CRITICAL** — concrete exploit OR code that will definitely crash or corrupt data:
+**CRITICAL** — concrete exploit OR code that will definitely crash or corrupt data.
+
+The catalog below lists common web-app patterns. **Do not treat it as a closed list.** Apply the critical bar to what this project actually does. Ask: *"If an attacker controlled this input / if this ran in prod today — what is the concrete, immediate impact?"* If the answer is credential theft, unauthorized action on behalf of a user, data corruption, or a definite crash — it is CRITICAL regardless of whether it matches a catalog pattern.
+
+Common examples (not exhaustive):
 - AUTH-01: Route reads/writes user data, no auth check before first DB call
 - AUTH-02: Webhook endpoint parses body without signature verification (Stripe, Svix, GitHub)
 - AUTH-03: Service-role or admin key used in a public/non-admin route
