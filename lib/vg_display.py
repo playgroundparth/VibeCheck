@@ -23,28 +23,46 @@ def rel_path(file_str, cwd):
 def _file_ref(f, cwd):
     file_str = f.get("file") or (f.get("file_paths") or [""])[0]
     r = rel_path(file_str, cwd) if file_str else None
-    return f"  *{r}*" if r else ""
+    return f"*{r}*" if r else ""
 
-def format_critical(f, cwd):
-    """CRITICAL: title + file + one-line why + detail hint. Short but informative."""
-    fid   = f.get("id", "?")
-    title = f.get("title", "Untitled")
-    loc   = _file_ref(f, cwd)
-    why   = (f.get("why") or f.get("description", "")).split("\n")[0][:140]
-    out   = [f"🔴 **{fid}** {title}{loc}"]
-    if why:
-        out.append(f"   {why}")
-    out.append(f"   `/vibecheck {fid}` for fix · `/vibecheck-resolve {fid}`")
-    return "\n".join(out)
-
-def format_oneliner(f, cwd):
-    """One line: icon + id + title + file. Used for PITFALL, HYGIENE, GOOD_TO_HAVE."""
+def format_full_card(f, cwd):
+    """Full card: id + title + file + why paragraph + fix block + resolve/detail links."""
     fid   = f.get("id", "?")
     sev   = f.get("severity", "")
     title = f.get("title", "Untitled")
     icon  = SEV_ICON.get(sev, "•")
     loc   = _file_ref(f, cwd)
-    return f"{icon} **{fid}** {title}{loc}"
+    why   = (f.get("why") or f.get("description", "")).strip()
+    fix   = (f.get("fix_prompt") or "").strip()
+
+    lines = [f"**{fid}** {icon} {title}"]
+    if loc:
+        lines.append(loc)
+    if why:
+        lines.append("")
+        lines.append(why)
+    if fix:
+        lines.append("")
+        lines.append("**Fix** — paste to Claude:")
+        lines.append(f"```\n{fix}\n```")
+    lines.append("")
+    lines.append(f"`/vibecheck-resolve {fid}` · `/vibecheck-detail {fid}`")
+    return "\n".join(lines)
+
+def format_oneliner(f, cwd):
+    """One line: id + icon + title + file. Used for GOOD_TO_HAVE."""
+    fid   = f.get("id", "?")
+    sev   = f.get("severity", "")
+    title = f.get("title", "Untitled")
+    icon  = SEV_ICON.get(sev, "•")
+    loc   = _file_ref(f, cwd)
+    why   = (f.get("why") or f.get("description", "")).split("\n")[0][:120]
+    out   = f"**{fid}** {icon} {title}"
+    if loc:
+        out += f"\n{loc}"
+    if why:
+        out += f"\n{why}"
+    return out
 
 def main():
     cwd = project.find_project_root(Path("."))
@@ -71,34 +89,28 @@ def main():
         print(msg)
         return
 
-    # CRITICAL: compact card with one-line why (urgent, but full fix is one step away)
-    criticals = [f for f in open_findings if f.get("severity") == "CRITICAL"]
-    if criticals:
-        print("## 🔴 Fix before shipping\n")
-        for f in criticals:
-            print(format_critical(f, cwd))
-            print()
-
-    # PITFALL, HYGIENE, GOOD_TO_HAVE: one-liners — run /vibecheck <id> for detail
-    for sev in ["PITFALL", "HYGIENE", "GOOD_TO_HAVE"]:
+    # CRITICAL, PITFALL, HYGIENE: full cards
+    for sev in ["CRITICAL", "PITFALL", "HYGIENE"]:
         bucket = [f for f in open_findings if f.get("severity") == sev]
         if not bucket:
             continue
         print(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
-        # GOOD_TO_HAVE: group all IDs on one line to save space
-        if sev == "GOOD_TO_HAVE":
-            ids = " · ".join(f"**{f.get('id','?')}**" for f in bucket)
-            print(f"💡 {ids}")
-        else:
-            for f in bucket:
-                print(format_oneliner(f, cwd))
-        print()
+        for f in bucket:
+            print(format_full_card(f, cwd))
+            print("\n---\n")
+
+    # GOOD_TO_HAVE: compact one-liners
+    suggestions = [f for f in open_findings if f.get("severity") == "GOOD_TO_HAVE"]
+    if suggestions:
+        print(f"## {SEV_ICON['GOOD_TO_HAVE']} {SEV_LABEL['GOOD_TO_HAVE']}\n")
+        for f in suggestions:
+            print(format_oneliner(f, cwd))
+            print()
 
     counts = {s: sum(1 for f in open_findings if f.get("severity") == s) for s in SEV_ICON}
     parts  = [f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s]]
     res    = f" · ✅ {len(resolved)} resolved" if resolved else ""
-    print(f"**{len(open_findings)} open** — {' · '.join(parts)}{res}")
-    print("Run `/vibecheck <id>` for full detail + fix prompt.")
+    print(f"**{len(open_findings)} open findings** — {' · '.join(parts)}{res}")
 
 if __name__ == "__main__":
     main()
