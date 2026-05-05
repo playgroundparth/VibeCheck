@@ -117,6 +117,9 @@ def run_static_checks(cwd: Path, changed_files: List[Path]) -> List[Dict]:
     findings.extend(_check_lockfile(cwd))
     findings.extend(_check_gitignore_coverage(cwd))
 
+    # Dead code: new files with no callers
+    findings.extend(_check_orphaned_new_files(cwd, changed_files))
+
     return findings
 
 
@@ -383,6 +386,96 @@ def _check_readme(cwd: Path) -> List[Dict]:
             "tags": ["hygiene", "documentation"],
         }]
     return []
+
+
+def _check_orphaned_new_files(cwd: Path, changed_files: List[Path]) -> List[Dict]:
+    """
+    Flag source files that were just created but nothing in the project imports them.
+    Uses project_map reverse_deps for O(1) lookup after an incremental map update.
+    Only flags files that are new (not previously in the map) to avoid noise on existing code.
+    """
+    SOURCE_EXTS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rb'}
+    SKIP_NAMES = {
+        "index.js", "index.ts", "index.jsx", "index.tsx",
+        "main.py", "app.py", "server.ts", "server.js",
+        "__init__.py", "setup.py", "conftest.py",
+    }
+    SKIP_PATTERNS = [
+        re.compile(r'^test_'),
+        re.compile(r'_test\.py$'),
+        re.compile(r'\.(test|spec)\.(ts|tsx|js|jsx)$'),
+        re.compile(r'\.(config|setup)\.(ts|js|mjs|cjs)$'),
+        re.compile(r'^(jest|vitest|webpack|vite|rollup|babel|eslint|prettier)\.'),
+    ]
+
+    # Lazy import — keeps static_checks fast if project_map is absent
+    try:
+        import project_map as pm
+    except ImportError:
+        return []
+
+    map_data = pm.load_map(cwd)
+    if not map_data:
+        return []
+
+    existing_files = set(map_data.get("files", {}).keys())
+    new_source_files = []
+
+    for f in changed_files:
+        if not f.exists() or f.suffix not in SOURCE_EXTS:
+            continue
+        if f.name in SKIP_NAMES:
+            continue
+        name_lower = f.name.lower()
+        if any(p.search(name_lower) for p in SKIP_PATTERNS):
+            continue
+        # Skip entry-point scripts
+        try:
+            head = f.read_text(encoding="utf-8", errors="ignore")[:200]
+            if '#!/' in head or 'if __name__ == "__main__"' in head:
+                continue
+        except Exception:
+            continue
+        try:
+            rel = str(f.relative_to(cwd))
+        except ValueError:
+            continue
+        if rel not in existing_files:
+            new_source_files.append(f)
+
+    if not new_source_files:
+        return []
+
+    # Update map to capture new files and rebuild reverse_deps
+    try:
+        updated = pm.update_map_for_files(cwd, new_source_files)
+    except Exception:
+        return []
+
+    reverse_deps = updated.get("reverse_deps", {})
+    findings = []
+
+    for f in new_source_files:
+        try:
+            rel = str(f.relative_to(cwd))
+        except ValueError:
+            continue
+        callers = reverse_deps.get(rel, [])
+        if not callers:
+            findings.append({
+                "severity": "PITFALL",
+                "title": f"{f.name} added but nothing imports it",
+                "file": rel,
+                "why": "No callers found — this file ships as dead code unless something imports it",
+                "fix_prompt": (
+                    f"{f.name} was just created but no other file imports it. "
+                    f"Either import it where it's needed, or delete it if it was created by mistake."
+                ),
+                "source": "static",
+                "tags": ["dead-code"],
+            })
+
+    return findings
 
 
 def _check_lockfile(cwd: Path) -> List[Dict]:

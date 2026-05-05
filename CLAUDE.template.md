@@ -71,6 +71,8 @@ Read:
 
 **Installer/uninstaller rule**: if a file is added to an installed, generated, or copied set (commands, hooks, lib files, routes, plugins), read both the installer path AND the uninstaller/cleanup path. This is the check that catches "you added the file but forgot to clean it up on uninstall."
 
+**Dead-on-arrival rule**: if a new source file was created this turn (not an entry point, test, or config), grep for `import <module_name>` or `require('<filename>')` across the project. If zero results: flag DEAD_ON_ARRIVAL. Only flag after running the grep — never guess.
+
 Only flag cross-file gaps if you actually read the maintenance file and confirmed the gap. Never guess.
 
 Max 6 files total. Skip trivial-change short-circuit: if the change is a comment fix, typo, or config value tweak with no structural impact, you may skip Steps 3–5 and output `✅ Safe to continue` directly.
@@ -109,6 +111,7 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 - OVERBUILDING — complexity that exceeds what this stage needs (caching before load, premature abstraction)
 - REINVENTING — building something that already exists and works better (custom JWT, custom email, custom queues)
 - WRONG ABSTRACTION — structure that will resist the next obvious change
+- DEAD_ON_ARRIVAL — new file or module created, confirmed by grep that nothing imports it yet; ships as dead weight and gets harder to delete as it ages
 - In-memory state that won't survive restarts
 - Silent production side-effects — debug flags, verbose logging, or dev-mode settings written to config files that ship to all users (e.g. `DEBUG=1` in a settings.json that gets committed or copied to every install)
 - Cross-file inconsistency — confirmed after reading the maintenance file
@@ -187,6 +190,7 @@ Read file → merge → write back.
 
 After the security/correctness check, scan for:
 - No tests for new feature → "No tests here — if this breaks in prod, you'll be debugging blind."
+- New file added, nothing imports it (confirmed by grep) → "Nothing imports this yet — wire it up now or you'll forget it exists."
 - New endpoint not wired to any caller → "This endpoint exists but nothing calls it — dead code waiting to happen."
 - Big change (5+ files) → "This touches N files — hard to review, harder to roll back."
 - Changed behavior without updating callers → "This changes existing behavior. Callers not updated will break silently."
