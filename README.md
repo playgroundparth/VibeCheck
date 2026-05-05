@@ -106,6 +106,8 @@ The verdict is a holistic judgment, not a mechanical count.
 | `/vibecheck-status` | Health metrics — findings, resolution rate, cost |
 | `/vibecheck-timeline` | Activity log — what changed and when |
 | `/vibecheck-report` | Generate a full HTML health dashboard |
+| `/vibecheck-review` | Skeptical senior-dev review of everything changed since last commit — full 30-pattern catalog |
+| `/vibecheck-stage mvp\|growth\|prod` | Set project stage to adjust severity thresholds |
 | `/vibecheck-skills` | Review proposed skills |
 | `/vibecheck-promote-skill` | Promote a proposed skill to active |
 | `/vibecheck-model haiku\|sonnet` | Switch analyzer model |
@@ -124,32 +126,43 @@ The verdict is a holistic judgment, not a mechanical count.
 
 ## What VibeCheck catches
 
-**Critical** — flags only when there's a concrete exploit or definite breakage:
-- Route handles user data without an auth check
-- User input in a database query (SQL injection)
-- User-controlled path in file read/write (path traversal)
-- Webhook/payment endpoint without signature verification
-- API response leaks data the caller shouldn't see
-- Secret or credential hardcoded in source
-- Logic that will definitely crash or corrupt data in production
+The inline check (runs after every change) covers the most common critical and pitfall patterns. `/vibecheck-review` applies the full 30-pattern catalog after larger changes.
 
-**Pitfall** — architectural and decision traps, not immediately exploitable:
-- OVERBUILDING — complexity that exceeds what this stage of the project needs
-- REINVENTING — building something that already exists and works better (custom JWT, custom email, custom queues)
-- WRONG ABSTRACTION — structure that will resist the next obvious change
-- Cross-file inconsistency — added to a collection but forgot to update cleanup/install lists
-- In-memory state that won't survive restarts
-- New feature built on top of broken code
+**Critical** — flags only when there's a concrete exploit or definite breakage:
+- AUTH-01: Route reads/writes user data with no auth check before the first DB call
+- AUTH-02: Webhook endpoint (Stripe, GitHub, etc.) without signature verification
+- AUTH-03: Service-role or admin key used in a route that doesn't require admin auth
+- DATA-02: Schema changed with no migration file
+- DATA-04: Payment event processed without idempotency check (Stripe retries = double charge)
+- Secret or credential hardcoded in source
+- ARCH-08: Exported function signature changed, callers not updated
+
+**Pitfall** — architectural traps, not immediately exploitable:
+- DEAD_ON_ARRIVAL: new file confirmed by grep to have no callers
+- AUTH-04: Auth check happens after data is fetched
+- AUTH-06: Custom JWT when the project's auth library handles it
+- ARCH-01: Service/factory/interface wrapping a single DB call
+- ARCH-03/04: Custom email or job queue instead of Resend/Inngest
+- DATA-01: In-memory rate limiter or counter (resets on restart)
+- DATA-06: Read-then-write without a transaction (race condition)
+- DATA-08: No DB connection pooling in serverless deployment
+- Cross-file inconsistency (added to a collection but forgot to update cleanup/install lists)
 
 **Hygiene**:
 - Non-trivial feature with no test file
-- `await` without try/catch in payment, auth, or DB paths
+- `await` without try/catch in payment, auth, or DB paths (DATA-03)
 
 **Good to have** — minor only:
 - Missing rate limiting on public endpoints
 - Missing input validation on user-facing forms
 
 **Never reported**: code style, naming, console.log, large files, anything already in existing findings.
+
+## Integration skills
+
+When VibeCheck detects that you're using Stripe, Supabase, Clerk, Prisma, OpenAI, or Vercel, it auto-installs an integration skill into `.claude/skills/`. These are focused guidance documents — they don't replace the anti-pattern catalog, they add integration-specific rules on top of it (webhook verification patterns, connection pooling specifics, RLS gotchas, etc.).
+
+`/vibecheck-review` automatically reads the relevant skill when the changed files match the integration.
 
 ## Updating
 
@@ -189,7 +202,7 @@ npm test                        # runs the Python test suite (33 assertions)
 python3 tests/test_project_map.py  # same, directly
 ```
 
-`tests/golden/` contains the behavioral spec for the LLM review layer — 8 annotated scenarios covering the full verdict range, with expected findings, evidence anchoring requirements, and explicit anti-patterns. Read these before changing `CLAUDE.template.md`.
+`tests/golden/` contains the behavioral spec for the LLM review layer — 9 annotated scenarios covering the full verdict range, with expected findings, evidence anchoring requirements, and explicit anti-patterns. Read these before changing `CLAUDE.template.md`.
 
 ## License
 

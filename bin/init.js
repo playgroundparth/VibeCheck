@@ -121,7 +121,7 @@ async function main() {
   const libFiles = [
     "store.py", "static_checks.py", "patterns.py", "guardrails.py",
     "project.py", "project_map.py", "health_report.py", "ignore.py",
-    "metrics.py", "context_extractor.py",
+    "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
   ];
   libFiles.forEach((f) => {
     copyFile(
@@ -130,6 +130,29 @@ async function main() {
     );
   });
   console.log("✓ Installed lib → .claude/hooks/lib/");
+
+  // Copy integration skill templates (used by post_tool.py to auto-install skills)
+  const skillTemplates = [
+    "stripe.md", "supabase.md", "clerk.md", "prisma.md", "openai.md", "vercel.md",
+  ];
+  const skillTemplatesDir = path.join(claudeDir, "hooks", "lib", "skills");
+  fs.mkdirSync(skillTemplatesDir, { recursive: true });
+  skillTemplates.forEach((f) => {
+    copyFile(path.join(VIBEGUARD_ROOT, "lib", "skills", f), path.join(skillTemplatesDir, f));
+  });
+
+  // Copy framework files (loaded by Claude during inline VibeCheck when detected)
+  const frameworkFiles = [
+    "event-driven.md", "irreversible-action.md", "billing-pricing.md",
+    "async-scheduled.md", "concurrent-state.md", "cross-cutting-state.md",
+    "external-service.md", "new-dependency.md", "ugc.md", "user-input.md",
+  ];
+  const frameworksDir = path.join(claudeDir, "hooks", "lib", "frameworks");
+  fs.mkdirSync(frameworksDir, { recursive: true });
+  frameworkFiles.forEach((f) => {
+    copyFile(path.join(VIBEGUARD_ROOT, "frameworks", f), path.join(frameworksDir, f));
+  });
+  console.log("✓ Installed frameworks → .claude/hooks/lib/frameworks/");
 
   // Copy agents
   copyFile(
@@ -149,15 +172,16 @@ async function main() {
   const commandsDir = path.join(claudeDir, "commands");
   fs.mkdirSync(commandsDir, { recursive: true });
   const commandFiles = [
-    "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-    "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
-    "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
-    "vibecheck-model.md", "vibecheck-review.md",
+    "vibecheck.md", "vibecheck-resolve.md", "vibecheck-scan.md",
+    "vibecheck-review.md", "vibecheck-stage.md",
   ];
   for (const f of commandFiles) {
     copyFile(path.join(VIBEGUARD_ROOT, "commands", f), path.join(commandsDir, f));
   }
-  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status, /vibecheck-report, /vibecheck-timeline, /vibecheck-skills, /vibecheck-model, /vibecheck-review)");
+  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-resolve, /vibecheck-scan, /vibecheck-review, /vibecheck-stage)");
+
+  // Symlink commands into any existing worktrees so Claude Code's Code tab can see them
+  wireCommandsIntoWorktrees(claudeDir);
 
   // Copy hooks
   copyFile(
@@ -246,15 +270,12 @@ After each task Claude finishes, you'll see:
   [VibeCheck] 🔴 1 critical · 💡 3 suggestions · /vibecheck to review
 
 Commands:
-  /vibecheck                   View findings with fix prompts
-  /vibecheck-detail [id]       Full detail on one finding
-  /vibecheck-resolve [id]      Mark fixed
-  /vibecheck-scan              Scan existing codebase
-  /vibecheck-report            Open health dashboard
-  /vibecheck-timeline          Activity log
-  /vibecheck-status            Project health overview
-  /vibecheck-skills            Review proposed skills
-  /vibecheck-promote-skill     Promote a proposed skill to active
+  /vibecheck                   View all findings with fix prompts
+  /vibecheck [id]              Full detail on one finding (e.g. /vibecheck vg-001)
+  /vibecheck-resolve [id]      Mark a finding fixed
+  /vibecheck-scan              Full repo scan (existing codebases)
+  /vibecheck-review            On-demand code review of current diff
+  /vibecheck-stage [stage]     Set project stage (mvp|growth|prod)
 
 Model: Claude Haiku · ~$0.001-0.002 per analysis
 .vibecheck/ is in .gitignore. Findings stay local.
@@ -475,6 +496,29 @@ function seedArtifactGroups(cwd, vgDir) {
   } catch {}
 }
 
+function wireCommandsIntoWorktrees(claudeDir) {
+  // Claude Code's "Code tab" opens each branch in a git worktree at
+  // .claude/worktrees/<name>/. It doesn't inherit the main .claude/commands/,
+  // so commands are invisible there unless we link them in.
+  const worktreesBase = path.join(claudeDir, "worktrees");
+  if (!fs.existsSync(worktreesBase)) return;
+  const worktrees = fs.readdirSync(worktreesBase, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  let linked = 0;
+  for (const wt of worktrees) {
+    const wtClaudeDir = path.join(worktreesBase, wt, ".claude");
+    if (!fs.existsSync(wtClaudeDir)) continue;
+    const target = path.join(wtClaudeDir, "commands");
+    if (fs.existsSync(target)) continue; // already linked or has own commands dir
+    try {
+      fs.symlinkSync("../../../commands", target);
+      linked++;
+    } catch {}
+  }
+  if (linked > 0) console.log(`✓ Linked commands into ${linked} existing worktree(s)`);
+}
+
 function wireHooks(claudeDir) {
   // Project-level settings: only env, no hooks.
   // Hooks go in ~/.claude/settings.json (user-level) so they fire from worktrees too.
@@ -551,54 +595,13 @@ function wireHooks(claudeDir) {
 
 function addToClaudeMd(cwd, exists) {
   const claudeMdPath = path.join(cwd, "CLAUDE.md");
-  // Read the canonical template from the package
+  // Read the canonical template from the package — no fallback, template must ship with the package
   const templatePath = path.join(VIBEGUARD_ROOT, "CLAUDE.template.md");
-  let block;
-  if (fs.existsSync(templatePath)) {
-    block = "\n" + fs.readFileSync(templatePath, "utf8");
-  } else {
-    // Inline fallback — kept in sync with CLAUDE.template.md
-    block = `
-## VibeCheck (active) — runs after every code change
-
-After ANY response where you used Write, Edit, or MultiEdit tools, do this at the END of your response — after completing the user's request:
-
-1. Read \`.vibecheck/findings.json\` to get existing findings and next ID
-2. Read each file you just modified (you know which ones — you edited them this turn)
-3. Check for security issues AND dev tips (rules below)
-4. Write new security findings to \`.vibecheck/findings.json\`
-5. Auto-resolve: for each open finding whose file you read, if issue is gone → set \`status:"resolved"\`, add \`resolved_at\`, \`resolution_note:"auto-resolved"\`
-6. Always end your response with a VibeCheck footer (format below)
-
-**CRITICAL** — flag only if you can state a concrete exploit:
-- Route handles user data without auth check
-- User input in DB query (SQL injection)
-- Webhook/payment endpoint without signature verification
-- Secret/credential hardcoded in source
-
-**PITFALL** — architectural trap:
-- In-memory rate limiting or counters (won't survive restarts)
-- Custom auth/JWT instead of using a library
-
-**HYGIENE**: non-trivial feature with no tests · \`await\` without try/catch in payment/auth/DB
-
-**GOOD_TO_HAVE**: missing rate limiting · missing input validation on user-facing forms
-
-**DROP**: large files, console.log (unless leaking secrets), naming style, anything in existing findings.
-
-Finding format: {"id":"vg-NNN","severity":"...","title":"...","file":"path:line","why":"...","fix_prompt":"...","status":"open","source":"live","detected_at":"ISO"}
-
-Dev Tips — show as short witty one-liners after the security check (max 2):
-- No tests for new feature · new route not wired to UI · big change (>5 files) → suggest phases
-- Duplicate logic elsewhere · no git commit · backward compat risk · ops complexity
-
-Footer — be the witty senior dev friend (memes, movie refs ok):
-If issues: \`---\\nVibeCheck: 🔴 N critical · ⚡ N pitfalls · 🧹 N hygiene\\n💡 [dev tip]\`
-If clean: \`---\\nVibeCheck: ✅ [witty one-liner — e.g. "This is the way." / "No issues. Chef's kiss."]\\n💡 [dev tip if applicable]\`
-
-Commands: \`/vibecheck\` · \`/vibecheck-detail <id>\` · \`/vibecheck-resolve <id>\` · \`/vibecheck-status\`
-`;
+  if (!fs.existsSync(templatePath)) {
+    console.error("❌ CLAUDE.template.md not found in package. Installation may be incomplete.");
+    process.exit(1);
   }
+  const block = "\n" + fs.readFileSync(templatePath, "utf8");
 
   if (exists) {
     const current = fs.readFileSync(claudeMdPath, "utf8");
@@ -615,6 +618,40 @@ Commands: \`/vibecheck\` · \`/vibecheck-detail <id>\` · \`/vibecheck-resolve <
     });
   } catch {
     // Not a git repo, or nothing to commit — silently continue
+  }
+
+  // Patch any existing worktrees — Claude Code's Code tab opens each branch in its own
+  // worktree at .claude/worktrees/<name>/, which has its own CLAUDE.md checked out from
+  // that branch. Those branches may predate this install, so the VibeCheck block won't
+  // be there. Append it directly so Claude sees the rules immediately without a merge.
+  const worktreesBase = path.join(cwd, ".claude", "worktrees");
+  if (fs.existsSync(worktreesBase)) {
+    // Extract the VibeCheck section from the template (everything from ## VibeCheck onward)
+    const templatePath = path.join(VIBEGUARD_ROOT, "CLAUDE.template.md");
+    if (!fs.existsSync(templatePath)) return;
+    const templateLines = fs.readFileSync(templatePath, "utf8").split("\n");
+    const vcStart = templateLines.findIndex((l) => l.startsWith("## VibeCheck (active)"));
+    if (vcStart === -1) return;
+    const vcBlock = "\n---\n" + templateLines.slice(vcStart).join("\n");
+
+    const worktrees = fs.readdirSync(worktreesBase, { withFileTypes: true })
+      .filter((d) => d.isDirectory()).map((d) => d.name);
+
+    let patched = 0;
+    for (const wt of worktrees) {
+      const wtClaudeMd = path.join(worktreesBase, wt, "CLAUDE.md");
+      if (!fs.existsSync(wtClaudeMd)) continue;
+      const content = fs.readFileSync(wtClaudeMd, "utf8");
+      if (content.includes("VibeCheck")) continue; // already has it
+      fs.appendFileSync(wtClaudeMd, vcBlock);
+      // Commit to the worktree's branch so it survives future checkouts
+      try {
+        execSync(`git add CLAUDE.md && git commit -m "Add VibeCheck inline rules to worktree CLAUDE.md"`,
+          { cwd: path.join(worktreesBase, wt), shell: true, stdio: ["pipe", "pipe", "ignore"] });
+      } catch {}
+      patched++;
+    }
+    if (patched > 0) console.log(`✓ Patched VibeCheck rules into ${patched} existing worktree CLAUDE.md(s)`);
   }
 }
 

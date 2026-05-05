@@ -98,6 +98,16 @@ def main():
     open_findings = [f for f in findings if f.get("status", "open") == "open"]
     next_id = max((int(f["id"].split("-")[1]) for f in findings if f.get("id","").startswith("vg-")), default=0) + 1
 
+    # Read project_stage from memory.json for Layer 1 stage-aware context
+    project_stage = None
+    try:
+        mem_path = store.vg_dir(cwd) / "memory.json"
+        if mem_path.exists():
+            mem = json.loads(mem_path.read_text())
+            project_stage = mem.get("project_stage") or mem.get("project", {}).get("stage")
+    except Exception:
+        pass
+
     file_list = "\n".join(f"  • {rf}" for rf in rel_files)
     open_summary = ""
     if open_findings:
@@ -106,6 +116,18 @@ def main():
             lines.append(f"  {f['id']} ({f['severity']}): {f['title'][:60]}")
         open_summary = "\n".join(lines)
 
+    stage_hint = ""
+    if project_stage == "mvp":
+        stage_hint = (
+            "\nProject stage: MVP — for any ARCH-05 (abstraction, event bus, service layer): "
+            "ask 'is this solving a problem you have now?' If not, severity is PITFALL and fix is deletion."
+        )
+    elif project_stage == "prod":
+        stage_hint = (
+            "\nProject stage: PROD — DATA-01 (in-memory state) and DATA-08 (no pooling) are CRITICAL, "
+            "not PITFALL. OPS-06 (AI timeout) is PITFALL."
+        )
+
     msg = f"""[VibeCheck] Files modified this turn:
 {file_list}
 
@@ -113,9 +135,19 @@ If you already appended the VibeCheck footer above — you're done, ignore this.
 If you didn't — do it now (CLAUDE.md §VibeCheck requires it after every Write/Edit/MultiEdit).
 
 Next finding ID: vg-{next_id:03d}
-Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}"""
+Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}{stage_hint}"""
 
     print(json.dumps({"systemMessage": msg}))
+
+    # Clear active_frameworks.json — frameworks are per-response, not persistent.
+    # Claude has already read this file as part of its inline VibeCheck step.
+    # Clearing it ensures next response starts with a clean slate.
+    af_path = store.vg_dir(cwd) / "active_frameworks.json"
+    if af_path.exists():
+        try:
+            af_path.unlink()
+        except Exception:
+            pass
 
 
 def get_changed_files_this_turn(transcript_path, cwd):

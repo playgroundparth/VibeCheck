@@ -68,6 +68,7 @@ Read:
 1. Every file you modified this turn
 2. Every lifecycle file from Step 2 (`installed_by`, `removed_by`, `updated_by`, `documented_in`)
 3. Up to 2 additional maintenance files — files that maintain lists, registries, or cleanup routines for the type of thing you just created/deleted
+4. `.vibecheck/active_frameworks.json` if it exists — lists frameworks detected in the files you just changed. For each framework name listed, read `.claude/hooks/lib/frameworks/<name>.md` and apply its questions during Step 5. These are senior-dev reflexes for patterns that deserve explicit reasoning: retry behavior, rollback story, idempotency, visibility at 2am.
 
 **Installer/uninstaller rule**: if a file is added to an installed, generated, or copied set (commands, hooks, lib files, routes, plugins), read both the installer path AND the uninstaller/cleanup path. This is the check that catches "you added the file but forgot to clean it up on uninstall."
 
@@ -129,12 +130,29 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 
 Full anti-pattern catalog (30 patterns with fix prompts) available via `/vibecheck-review`.
 
+**Stage-aware judgment**: read `project_stage` from `memory.json` (set via `/vibecheck-stage`). If set, apply the questions and severity changes below — these aren't just escalations, they change what you *ask*.
+
+`mvp` — pre-PMF, speed matters more than architecture:
+- When you see ARCH-05 (service layers, event buses, multi-file abstractions for a single operation): ask explicitly — "Is this complexity solving a problem you already have, or one you're anticipating?" If anticipated: the fix is *deletion*, not simplification. Severity: **PITFALL** (not nice-to-have — overbuilding at MVP stage has a real cost: slower iteration, harder debugging, code you'll throw away anyway).
+- DATA-07 (stored derived data), OPS-03..05: stay GOOD_TO_HAVE — not worth the bandwidth.
+
+`prod` — real traffic, real users, real money:
+- DATA-01 (in-memory counter or rate limiter): this IS broken right now, not "will break eventually." Every deploy resets it. With real traffic, the limit is already ineffective. Severity: **CRITICAL**.
+- DATA-08 (no DB pooling): same — under real load, connections are already exhausting. Severity: **CRITICAL**.
+- OPS-06 (AI route with no timeout on Vercel): users are already hitting gateway errors on slow LLM calls. Severity: **PITFALL**.
+
+`growth` — between MVP and prod: use default severities, no changes.
+
 **Severity for cross-file gaps** — use the artifact group's `must_check` / `nice_check` to decide:
 - Relationship key in `must_check` (e.g. `removed_by`, `installed_by`) → **PITFALL**
 - Relationship key in `nice_check` (e.g. `documented_in`) → **HYGIENE** or **GOOD_TO_HAVE**
 - No group match → use your judgment
 
 **DROP**: large files, console.log unless leaking secrets, naming style, anything already in existing findings, cross-file gaps you haven't confirmed by reading the other file.
+
+**Already handled by static checks (never re-flag inline):**
+- OPS-01: env var missing from .env.example — caught by `static_checks.py` via grep
+- ARCH-07: new file with no callers — caught by `static_checks.py` via reverse-dep map
 
 Finding format (append to `.vibecheck/findings.json`):
 ```json
@@ -219,4 +237,4 @@ VibeCheck: [verdict]  [· 🔴 N critical · ⚡ N pitfalls · 🧹 N hygiene �
 
 The `🧪` line must be specific. Not "add tests" — name what to test: "run `/vibecheck uninstall` and verify no command files remain" or "send a webhook with a forged signature and verify it's rejected."
 
-Commands: `/vibecheck` · `/vibecheck-detail <id>` · `/vibecheck-resolve <id>` · `/vibecheck-status`
+Commands: `/vibecheck` · `/vibecheck <id>` · `/vibecheck-resolve <id>` · `/vibecheck-scan` · `/vibecheck-review` · `/vibecheck-stage`

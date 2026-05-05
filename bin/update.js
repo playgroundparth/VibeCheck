@@ -49,6 +49,38 @@ for (const f of libFiles) {
   }
 }
 
+// Update framework files
+const frameworkFiles = [
+  "event-driven.md", "irreversible-action.md", "billing-pricing.md",
+  "async-scheduled.md", "concurrent-state.md", "cross-cutting-state.md",
+  "external-service.md", "new-dependency.md", "ugc.md", "user-input.md",
+];
+const frameworksDir = path.join(libDir, "frameworks");
+fs.mkdirSync(frameworksDir, { recursive: true });
+for (const f of frameworkFiles) {
+  const src = path.join(VIBECHECK_ROOT, "frameworks", f);
+  const dst = path.join(frameworksDir, f);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dst);
+    updated.push(`frameworks/${f}`);
+  }
+}
+
+// Update integration skill templates
+const skillTemplates = [
+  "stripe.md", "supabase.md", "clerk.md", "prisma.md", "openai.md", "vercel.md",
+];
+const skillTemplatesDir = path.join(libDir, "skills");
+fs.mkdirSync(skillTemplatesDir, { recursive: true });
+for (const f of skillTemplates) {
+  const src = path.join(VIBECHECK_ROOT, "lib", "skills", f);
+  const dst = path.join(skillTemplatesDir, f);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dst);
+    updated.push(`lib/skills/${f}`);
+  }
+}
+
 // Update hook files
 const hookFiles = [
   ["hooks/stop.py", "vibecheck_stop.py"],
@@ -68,10 +100,8 @@ for (const [src, dst] of hookFiles) {
 
 // Update command files
 const commandFiles = [
-  "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-  "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
-  "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
-  "vibecheck-model.md", "vibecheck-review.md",
+  "vibecheck.md", "vibecheck-resolve.md", "vibecheck-scan.md",
+  "vibecheck-review.md", "vibecheck-stage.md",
 ];
 const commandsDir = path.join(claudeDir, "commands");
 fs.mkdirSync(commandsDir, { recursive: true });
@@ -91,6 +121,20 @@ if (fs.existsSync(skillSrc)) {
   fs.mkdirSync(path.dirname(skillDst), { recursive: true });
   fs.copyFileSync(skillSrc, skillDst);
   updated.push("skills/vibecheck.md");
+}
+
+// Ensure worktrees have commands symlinked
+const worktreesBase = path.join(claudeDir, "worktrees");
+if (fs.existsSync(worktreesBase)) {
+  let linked = 0;
+  for (const wt of fs.readdirSync(worktreesBase, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
+    const wtClaudeDir = path.join(worktreesBase, wt, ".claude");
+    if (!fs.existsSync(wtClaudeDir)) continue;
+    const target = path.join(wtClaudeDir, "commands");
+    if (fs.existsSync(target)) continue;
+    try { fs.symlinkSync("../../../commands", target); linked++; } catch {}
+  }
+  if (linked > 0) console.log(`✓ Linked commands into ${linked} existing worktree(s)`);
 }
 
 console.log(`Updated ${updated.length} files in .claude/`);

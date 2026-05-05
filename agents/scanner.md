@@ -47,6 +47,18 @@ Glob **/stripe.* **/payment.* **/billing.* **/checkout.*
 ```
 Read up to 2.
 
+**Webhook / event handler files (if any):**
+```
+Glob **/webhook* **/webhooks* **/events* **/queue* **/consumer* **/subscriber*
+```
+Read up to 2. These get special analysis — see Framework questions below.
+
+**Delete / irreversible action files (if any):**
+```
+Grep -r "\.delete\|\.destroy\|sendEmail\|send_email\|cancelSubscription" src/ app/ --include="*.ts" --include="*.js" -l
+```
+Read up to 2 of the matching files. These get special analysis — see Framework questions below.
+
 **Config/env:**
 ```
 Read .env.example (never .env itself)
@@ -67,6 +79,28 @@ Count how many test files exist.
 ## Analysis
 
 Apply the same categories as the live analyzer. For a scan, you're looking at the whole project, so also check:
+
+### OPS-01: Env vars in code but missing from .env.example
+
+After reading `.env.example`, grep the sampled source files for `process.env.` or `os.environ`:
+```
+Bash: grep -r "process\.env\." src/ app/ --include="*.ts" --include="*.js" -h | grep -oP 'process\.env\.\K[A-Z_]+' | sort -u
+```
+Cross-check against what's in `.env.example`. Any var that appears in code but not in `.env.example` → CRITICAL finding. Skip: `NODE_ENV`, `PORT`, `CI`, `VERCEL`, `VERCEL_URL`, `GITHUB_ACTIONS`.
+
+### Framework questions — apply when you read these file types
+
+**Webhook / event handler files** — for each one you read, explicitly ask:
+1. What happens when this event fires twice? Is there an idempotency check on `event.id` or equivalent before processing? Missing → DATA-04, CRITICAL.
+2. If the handler throws mid-execution, does the event system retry? Will that cause double-processing?
+3. Is there signature/HMAC verification before the payload is trusted? Missing → AUTH-02, CRITICAL.
+4. If this fails at 2am, who finds out and how fast?
+
+**Delete / irreversible action files** — for each one you read, explicitly ask:
+1. Is there a rollback story? Soft-delete or archive path before hard delete?
+2. Is the action logged before it executes (not just after)? If it fails mid-way, is there a record?
+3. For email/notification sends: is there a deduplication guard? Can the same message send twice?
+4. Is there an authorization check for ownership — not just auth, but "does this user own this specific record"?
 
 ### Project-level patterns
 

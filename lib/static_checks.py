@@ -120,6 +120,9 @@ def run_static_checks(cwd: Path, changed_files: List[Path]) -> List[Dict]:
     # Dead code: new files with no callers
     findings.extend(_check_orphaned_new_files(cwd, changed_files))
 
+    # OPS-01: env vars used in code but absent from .env.example
+    findings.extend(_check_env_vars_documented(cwd, changed_files))
+
     return findings
 
 
@@ -474,6 +477,119 @@ def _check_orphaned_new_files(cwd: Path, changed_files: List[Path]) -> List[Dict
                 "source": "static",
                 "tags": ["dead-code"],
             })
+
+    return findings
+
+
+def _check_env_vars_documented(cwd: Path, changed_files: List[Path]) -> List[Dict]:
+    """
+    OPS-01: env var referenced in changed code but absent from .env.example.
+    Grep-confirmable — no reasoning required, so this lives here not in the LLM layer.
+    Only fires on source files (not .env.* files themselves).
+    """
+    # Patterns that extract variable names from code
+    ENV_PATTERNS = [
+        re.compile(r'process\.env\.([A-Z_][A-Z0-9_]+)'),            # JS/TS
+        re.compile(r'os\.environ(?:\.get)?\([\'"]([A-Z_][A-Z0-9_]+)[\'"]'),  # Python
+        re.compile(r'ENV\[[\'"]([A-Z_][A-Z0-9_]+)[\'"]\]'),         # Ruby
+        re.compile(r'getenv\([\'"]([A-Z_][A-Z0-9_]+)[\'"]'),        # PHP/C
+    ]
+    # Auto-injected by platforms/shells — not meaningful to document
+    SKIP_VARS = {
+        "NODE_ENV", "PORT", "HOST", "PWD", "HOME", "USER", "PATH", "SHELL", "TZ",
+        "CI", "GITHUB_ACTIONS", "VERCEL", "VERCEL_ENV", "VERCEL_URL",
+        "RAILWAY_ENVIRONMENT", "FLY_APP_NAME", "RENDER", "HEROKU_APP_NAME",
+        "npm_package_version", "npm_lifecycle_event",
+    }
+    SOURCE_EXTS = {'.js', '.ts', '.jsx', '.tsx', '.py', '.rb', '.php', '.go', '.rs'}
+
+    # Find .env.example (various naming conventions)
+    env_example_path = None
+    for name in [".env.example", ".env.example.local", "env.example", ".env.template", ".env.sample"]:
+        candidate = cwd / name
+        if candidate.exists():
+            env_example_path = candidate
+            break
+
+    # Collect vars used in changed source files
+    vars_by_file: dict = {}  # var_name → [rel_path, ...]
+    for file_path in changed_files:
+        if not file_path.exists():
+            continue
+        if file_path.suffix not in SOURCE_EXTS:
+            continue
+        # Don't check .env files or config files for this
+        if file_path.name.startswith(".env") or "env.example" in file_path.name:
+            continue
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        found = set()
+        for pat in ENV_PATTERNS:
+            found.update(pat.findall(content))
+        found -= SKIP_VARS
+        if not found:
+            continue
+        try:
+            rel = str(file_path.relative_to(cwd))
+        except ValueError:
+            rel = str(file_path)
+        for var in found:
+            vars_by_file.setdefault(var, []).append(rel)
+
+    if not vars_by_file:
+        return []
+
+    findings = []
+
+    if env_example_path is None:
+        # No .env.example at all — flag once if any env vars are used
+        findings.append({
+            "severity": "HYGIENE",
+            "title": "No .env.example — env vars not documented for deployment",
+            "file": ".env.example",
+            "why": (
+                f"Code references {len(vars_by_file)} env var(s) "
+                f"({', '.join(sorted(vars_by_file)[:3])}{'...' if len(vars_by_file) > 3 else ''}) "
+                f"but no .env.example exists to document them."
+            ),
+            "fix_prompt": (
+                "Create .env.example listing all required env vars with placeholder values. "
+                "This file should be committed — it's documentation, not secrets. "
+                f"Start with: {chr(10).join(f'{v}=' for v in sorted(vars_by_file))}"
+            ),
+            "source": "static",
+            "tags": ["ops-01", "env-var"],
+        })
+        return findings
+
+    # Parse vars declared in .env.example (VAR_NAME= or VAR_NAME=value or # VAR_NAME)
+    example_content = env_example_path.read_text(encoding="utf-8", errors="ignore")
+    example_vars = set(re.findall(r'^([A-Z_][A-Z0-9_]*)(?:\s*=.*)?$', example_content, re.MULTILINE))
+
+    missing = {var: files for var, files in vars_by_file.items() if var not in example_vars}
+    if not missing:
+        return []
+
+    for var, files in sorted(missing.items()):
+        first_file = files[0]
+        findings.append({
+            "severity": "CRITICAL",
+            "title": f"{var} used in code but missing from .env.example",
+            "file": first_file,
+            "why": (
+                f"{var} is referenced in {first_file} but absent from "
+                f"{env_example_path.name} — will be undefined in every environment that's not yours."
+            ),
+            "fix_prompt": (
+                f"Add `{var}=<placeholder>` to {env_example_path.name}. "
+                f"Then set the real value in your deployment environment "
+                f"(Vercel dashboard → Settings → Environment Variables, Railway vars, etc.)."
+            ),
+            "source": "static",
+            "tags": ["ops-01", "env-var"],
+        })
 
     return findings
 

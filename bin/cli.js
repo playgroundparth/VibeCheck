@@ -49,16 +49,12 @@ Multi-project (if global registry enabled):
   npx vibecheck list --prune      Remove projects whose path no longer exists
 
 Inside Claude Code:
-  /vibecheck                   See findings with fix prompts
-  /vibecheck-detail [id]       Full detail on one finding
+  /vibecheck                   See all findings with fix prompts
+  /vibecheck [id]              Full detail on one finding (e.g. /vibecheck vg-001)
   /vibecheck-resolve [id]      Mark a finding as resolved
-  /vibecheck-scan              Scan from within Claude Code
-  /vibecheck-report            Open health dashboard in browser
-  /vibecheck-timeline          Activity log
-  /vibecheck-status            Project health metrics
-  /vibecheck-skills            Review proposed skills
-  /vibecheck-promote-skill     Promote a proposed skill
-  /vibecheck-model [model]     Switch model (haiku|sonnet)
+  /vibecheck-scan              Full repo scan from within Claude Code
+  /vibecheck-review            On-demand code review of current diff
+  /vibecheck-stage [stage]     Set project stage (mvp|growth|prod)
 `);
 }
 

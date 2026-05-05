@@ -81,13 +81,17 @@ const libFiles = [
   "store.py", "static_checks.py", "patterns.py", "guardrails.py",
   "project.py", "project_map.py", "health_report.py", "ignore.py",
   "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
-  "file_selection.py", "integrations.py", "analyzer_direct.py",
 ];
 const libDir = path.join(hooksDir, "lib");
 if (fs.existsSync(libDir)) {
   for (const f of libFiles) {
     const p = path.join(libDir, f);
     if (fs.existsSync(p)) fs.rmSync(p);
+  }
+  // Remove skill templates directory
+  const skillTemplatesDir = path.join(libDir, "skills");
+  if (fs.existsSync(skillTemplatesDir)) {
+    fs.rmSync(skillTemplatesDir, { recursive: true });
   }
   // Remove lib dir if now empty (ignoring __pycache__)
   try {
@@ -101,12 +105,22 @@ if (fs.existsSync(libDir)) {
   } catch {}
 }
 
+// Remove auto-installed integration skills from .claude/skills/
+const skillsDir = path.join(claudeDir, "skills");
+if (fs.existsSync(skillsDir)) {
+  try {
+    const integrationSkills = fs.readdirSync(skillsDir).filter(f => f.startsWith("check-") && f.endsWith("-integration.md"));
+    for (const f of integrationSkills) {
+      fs.rmSync(path.join(skillsDir, f));
+      removed.push(`.claude/skills/${f}`);
+    }
+  } catch {}
+}
+
 // 3. Remove commands
 const commandFiles = [
-  "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-  "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
-  "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
-  "vibecheck-model.md", "vibecheck-review.md",
+  "vibecheck.md", "vibecheck-resolve.md", "vibecheck-scan.md",
+  "vibecheck-review.md", "vibecheck-stage.md",
 ];
 const commandsDir = path.join(claudeDir, "commands");
 for (const f of commandFiles) {
