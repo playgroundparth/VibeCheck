@@ -253,6 +253,30 @@ def main():
             _update_active_frameworks(cwd, matched, rel_path)
             debug_log(cwd, f"Frameworks detected: {matched}")
 
+        # Emit an in-turn reminder so Claude runs the inline VibeCheck check
+        # and emits the footer in THIS response — not the next one.
+        # PostToolUse systemMessage is injected into the current response's context
+        # while Claude is still generating it, unlike the Stop hook which fires after.
+        findings = store.load_findings(cwd)
+        next_id = max(
+            (int(f["id"].split("-")[1]) for f in findings if f.get("id", "").startswith("vg-")),
+            default=0
+        ) + 1
+        framework_note = ""
+        if matched:
+            names = ", ".join(sorted(matched))
+            framework_note = (
+                f" Frameworks: {names} — load .claude/hooks/lib/frameworks/<name>.md "
+                f"for each during Step 3."
+            )
+        print(json.dumps({
+            "systemMessage": (
+                f"[VibeCheck] {rel_path} was just modified. "
+                f"Run the inline check (CLAUDE.md Steps 1-8) and emit the footer before finishing. "
+                f"Next finding ID: vg-{next_id:03d}.{framework_note}"
+            )
+        }))
+
     sys.exit(0)
 
 
