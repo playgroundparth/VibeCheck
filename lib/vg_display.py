@@ -64,6 +64,31 @@ def format_oneliner(f, cwd):
         out += f"\n{why}"
     return out
 
+def build_full_report(open_findings, resolved, cwd):
+    """Build the complete markdown report string."""
+    lines = []
+    for sev in ["CRITICAL", "PITFALL", "HYGIENE"]:
+        bucket = [f for f in open_findings if f.get("severity") == sev]
+        if not bucket:
+            continue
+        lines.append(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
+        for f in bucket:
+            lines.append(format_full_card(f, cwd))
+            lines.append("\n---\n")
+
+    suggestions = [f for f in open_findings if f.get("severity") == "GOOD_TO_HAVE"]
+    if suggestions:
+        lines.append(f"## {SEV_ICON['GOOD_TO_HAVE']} {SEV_LABEL['GOOD_TO_HAVE']}\n")
+        for f in suggestions:
+            lines.append(format_oneliner(f, cwd))
+            lines.append("")
+
+    counts = {s: sum(1 for f in open_findings if f.get("severity") == s) for s in SEV_ICON}
+    parts  = [f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s]]
+    res    = f" · ✅ {len(resolved)} resolved" if resolved else ""
+    lines.append(f"**{len(open_findings)} open findings** — {' · '.join(parts)}{res}")
+    return "\n".join(lines)
+
 def main():
     cwd = project.find_project_root(Path("."))
     if not cwd or not store.is_initialized(cwd):
@@ -89,28 +114,32 @@ def main():
         print(msg)
         return
 
-    # CRITICAL, PITFALL, HYGIENE: full cards
-    for sev in ["CRITICAL", "PITFALL", "HYGIENE"]:
-        bucket = [f for f in open_findings if f.get("severity") == sev]
-        if not bucket:
-            continue
-        print(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
-        for f in bucket:
+    # Always write the full report to a markdown file
+    report_path = cwd / ".vibecheck" / "report.md"
+    full_report = build_full_report(open_findings, resolved, cwd)
+    report_path.write_text(full_report)
+
+    # --- Inline output: short enough for Claude to reproduce verbatim ---
+
+    # CRITICAL: full cards (most urgent — needs immediate context)
+    criticals = [f for f in open_findings if f.get("severity") == "CRITICAL"]
+    if criticals:
+        print("## 🔴 Fix before shipping\n")
+        for f in criticals:
             print(format_full_card(f, cwd))
             print("\n---\n")
 
-    # GOOD_TO_HAVE: compact one-liners
-    suggestions = [f for f in open_findings if f.get("severity") == "GOOD_TO_HAVE"]
-    if suggestions:
-        print(f"## {SEV_ICON['GOOD_TO_HAVE']} {SEV_LABEL['GOOD_TO_HAVE']}\n")
-        for f in suggestions:
-            print(format_oneliner(f, cwd))
-            print()
-
+    # Everything else: count summary only
     counts = {s: sum(1 for f in open_findings if f.get("severity") == s) for s in SEV_ICON}
-    parts  = [f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s]]
-    res    = f" · ✅ {len(resolved)} resolved" if resolved else ""
-    print(f"**{len(open_findings)} open findings** — {' · '.join(parts)}{res}")
+    non_critical = [(s, counts[s]) for s in ["PITFALL", "HYGIENE", "GOOD_TO_HAVE"] if counts[s]]
+    if non_critical:
+        parts = " · ".join(f"{SEV_ICON[s]} {n} {SEV_LABEL[s].lower()}" for s, n in non_critical)
+        print(f"Also: {parts}")
+        print()
+
+    res = f" · ✅ {len(resolved)} resolved" if resolved else ""
+    print(f"**{len(open_findings)} open** — {' · '.join(f'{SEV_ICON[s]} {counts[s]}' for s in SEV_ICON if counts[s])}{res}")
+    print(f"Full report with fix prompts → `.vibecheck/report.md`")
 
 if __name__ == "__main__":
     main()
