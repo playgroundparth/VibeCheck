@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "files": {},
+  "reverse_deps": {},
+  "last_built": "2026-01-01T00:00:00+00:00",
+  "artifact_groups": {
+    "slash_commands": {
+      "description": "Slash command files — installed, updated, and removed by lifecycle scripts",
+      "source_glob": "commands/*.md",
+      "installed_by": ["bin/init.js", "bin/update.js"],
+      "updated_by": ["bin/update.js"],
+      "removed_by": ["bin/uninstall.js"],
+      "documented_in": ["README.md", "bin/cli.js"],
+      "must_check": ["installed_by", "removed_by"],
+      "nice_check": ["documented_in"],
+      "confidence": "seeded",
+      "evidence": ["detected at init time from project directory structure"],
+      "times_confirmed": 0,
+      "created_at": "2026-01-01T00:00:00+00:00",
+      "last_confirmed": null
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "_comment": "Golden contract — what VibeCheck's LLM review SHOULD produce. Not asserted byte-for-byte; used to verify the architecture produces the right class of output.",
+  "severity": "PITFALL",
+  "file_contains": "bin/uninstall.js",
+  "title_contains": ["uninstall", "foo.md"],
+  "why_contains": ["left behind", "not removed", "cleanup"],
+  "fix_prompt_contains": ["uninstall.js", "commandFiles", "foo.md"],
+  "must_not_be": "HYGIENE",
+  "verdict": "⚠️ OK for MVP, not prod",
+  "before_shipping_contains": ["uninstall", "foo.md"]
+}

@@ -1,0 +1,6 @@
+{
+  "_comment": "Clean fixture — all lifecycle files are consistent. No PITFALL finding should be produced.",
+  "findings_count": 0,
+  "verdict": "✅ Safe to continue",
+  "must_not_produce": "PITFALL"
+}

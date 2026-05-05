@@ -1,0 +1,9 @@
+{
+  "_comment": "What lifecycle_files_for_changed() must return when commands/foo.md is the changed file",
+  "commands/foo.md": {
+    "group": "slash_commands",
+    "confidence": "seeded",
+    "must_check": ["bin/init.js", "bin/update.js", "bin/uninstall.js"],
+    "nice_check": ["README.md", "bin/cli.js"]
+  }
+}
