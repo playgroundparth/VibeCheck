@@ -192,6 +192,15 @@ Reports pass/warn/fail for every component: hook files, lib files, commands, glo
 - If opted in: only event names and counts are sent, never file paths, code, or finding content
 - Opt out anytime: `VIBECHECK_TELEMETRY=0` or `DO_NOT_TRACK=1`
 
+## Development
+
+```bash
+npm test                        # runs the Python test suite (33 assertions)
+python3 tests/test_project_map.py  # same, directly
+```
+
+`tests/golden/` contains the behavioral spec for the LLM review layer — 8 annotated scenarios covering the full verdict range, with expected findings, evidence anchoring requirements, and explicit anti-patterns. Read these before changing `CLAUDE.template.md`.
+
 ## License
 
 MIT
