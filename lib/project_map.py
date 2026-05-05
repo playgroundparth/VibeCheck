@@ -349,26 +349,44 @@ def _now_iso() -> str:
 
 
 # ─── Artifact groups: lifecycle relationships between files ───────────────────
+#
+# Schema per group:
+# {
+#   "description": "...",
+#   "source_glob": "commands/*.md",
+#   "installed_by": ["bin/init.js"],         # must_check — PITFALL if missing
+#   "removed_by":   ["bin/uninstall.js"],    # must_check — PITFALL if missing
+#   "documented_in": ["README.md"],          # nice_check — HYGIENE if missing
+#   "must_check": ["installed_by", "removed_by"],
+#   "nice_check": ["documented_in"],
+#   "confidence": "seeded|inferred|confirmed",
+#   "evidence": ["human-readable note of how we know this"],
+#   "times_confirmed": 0,
+#   "created_at": "ISO",
+#   "last_confirmed": null
+# }
+#
+# Confidence lifecycle:
+#   seeded    → set by init.js; assumed true, not yet verified
+#   inferred  → VibeCheck found evidence of the relationship in code
+#   confirmed → relationship verified multiple times (times_confirmed >= 2)
+
+CONFIDENCE_LEVELS = ["seeded", "inferred", "confirmed"]
+
+# Lifecycle relationship keys and their severity when the relationship is broken
+MUST_CHECK_KEYS = {"installed_by", "removed_by", "wired_by"}
+NICE_CHECK_KEYS = {"documented_in", "updated_by", "auth_checked_by", "migrations_in", "seed_in"}
+
+# All lifecycle keys (order determines check priority)
+LIFECYCLE_KEYS = (
+    "installed_by", "updated_by", "removed_by",
+    "documented_in", "wired_by", "auth_checked_by",
+    "migrations_in", "seed_in",
+)
+
 
 def get_artifact_groups(cwd: Path) -> Dict:
-    """
-    Return artifact_groups from project_map.json.
-
-    Artifact groups describe lifecycle relationships — which files install,
-    update, remove, or document each category of artifact. This is what lets
-    VibeCheck ask "you added a command file — did you update uninstall.js?"
-
-    Schema:
-    {
-      "slash_commands": {
-        "description": "Slash command files installed into .claude/commands/",
-        "source_glob": "commands/*.md",
-        "installed_by": ["bin/init.js", "bin/update.js"],
-        "removed_by": ["bin/uninstall.js"],
-        "documented_in": ["README.md", "bin/cli.js"]
-      }
-    }
-    """
+    """Return artifact_groups from project_map.json."""
     map_data = load_map(cwd)
     if not map_data:
         return {}
@@ -396,7 +414,6 @@ def find_artifact_group(file_path: str, groups: Dict) -> Optional[tuple]:
         glob = group.get("source_glob", "")
         if not glob:
             continue
-        # Match against full path or just filename
         if fnmatch.fnmatch(file_path, glob) or fnmatch.fnmatch(file_path.split("/")[-1], glob.split("/")[-1]):
             return name, group
     return None, None
@@ -407,7 +424,7 @@ def lifecycle_files_for_changed(cwd: Path, changed_files: List[Path]) -> Dict[st
     Given a list of changed files, return the lifecycle files that should be
     checked for each changed file that matches an artifact group.
 
-    Returns {changed_file_rel: {"group": name, "check": [file, ...]}}
+    Returns {changed_file_rel: {"group": name, "must_check": [...], "nice_check": [...], "check": [all]}}
     """
     groups = get_artifact_groups(cwd)
     if not groups:
@@ -424,14 +441,103 @@ def lifecycle_files_for_changed(cwd: Path, changed_files: List[Path]) -> Dict[st
         if not group_name:
             continue
 
-        check_files = []
-        for key in ("installed_by", "updated_by", "removed_by", "documented_in", "wired_by", "auth_checked_by"):
-            check_files.extend(group.get(key, []))
+        must_keys = set(group.get("must_check", list(MUST_CHECK_KEYS)))
+        nice_keys = set(group.get("nice_check", list(NICE_CHECK_KEYS)))
 
+        must_files, nice_files = [], []
+        for key in LIFECYCLE_KEYS:
+            files = group.get(key, [])
+            if key in must_keys:
+                must_files.extend(files)
+            elif key in nice_keys:
+                nice_files.extend(files)
+
+        all_files = list(dict.fromkeys(must_files + nice_files))
         result[rel] = {
             "group": group_name,
+            "confidence": group.get("confidence", "seeded"),
             "description": group.get("description", ""),
-            "check": list(dict.fromkeys(check_files)),  # dedupe, preserve order
+            "must_check": list(dict.fromkeys(must_files)),
+            "nice_check": list(dict.fromkeys(nice_files)),
+            "check": all_files,
         }
 
     return result
+
+
+# ─── Self-healing: update groups based on evidence found during review ────────
+
+def upgrade_group_confidence(cwd: Path, group_name: str, evidence_note: str) -> bool:
+    """
+    Promote a group's confidence one step (seeded → inferred → confirmed).
+    Records evidence_note. Returns True if promoted.
+    """
+    groups = get_artifact_groups(cwd)
+    group = groups.get(group_name)
+    if not group:
+        return False
+
+    current = group.get("confidence", "seeded")
+    idx = CONFIDENCE_LEVELS.index(current) if current in CONFIDENCE_LEVELS else 0
+    if idx >= len(CONFIDENCE_LEVELS) - 1:
+        # Already at max — still record evidence and increment times_confirmed
+        group["times_confirmed"] = group.get("times_confirmed", 0) + 1
+        group["last_confirmed"] = _now_iso()
+        evidence = group.setdefault("evidence", [])
+        if evidence_note and evidence_note not in evidence:
+            evidence.append(evidence_note)
+        save_artifact_groups(cwd, groups)
+        return False
+
+    group["confidence"] = CONFIDENCE_LEVELS[idx + 1]
+    group["times_confirmed"] = group.get("times_confirmed", 0) + 1
+    group["last_confirmed"] = _now_iso()
+    evidence = group.setdefault("evidence", [])
+    if evidence_note and evidence_note not in evidence:
+        evidence.append(evidence_note)
+
+    groups[group_name] = group
+    save_artifact_groups(cwd, groups)
+    return True
+
+
+def add_inferred_group(cwd: Path, group_name: str, group_dict: Dict, evidence_note: str) -> bool:
+    """
+    Add a new artifact group discovered during analysis (confidence: inferred).
+    Does not overwrite existing groups.
+    """
+    groups = get_artifact_groups(cwd)
+    if group_name in groups:
+        return False  # Already exists — use upgrade_group_confidence instead
+
+    sanitized = re.sub(r'[^a-z0-9_]', '_', group_name.lower().strip())[:40] or "unknown"
+    must_keys = [k for k in group_dict if k in MUST_CHECK_KEYS]
+    nice_keys = [k for k in group_dict if k in NICE_CHECK_KEYS]
+
+    new_group = {
+        **group_dict,
+        "confidence": "inferred",
+        "must_check": must_keys,
+        "nice_check": nice_keys,
+        "evidence": [evidence_note] if evidence_note else [],
+        "times_confirmed": 1,
+        "created_at": _now_iso(),
+        "last_confirmed": _now_iso(),
+    }
+    groups[sanitized] = new_group
+    save_artifact_groups(cwd, groups)
+    return True
+
+
+def severity_for_missing_relationship(group: Dict, relationship_key: str) -> str:
+    """
+    Return the finding severity for a missing relationship.
+    must_check keys → PITFALL; nice_check keys → HYGIENE or GOOD_TO_HAVE.
+    """
+    must_keys = set(group.get("must_check", list(MUST_CHECK_KEYS)))
+    nice_keys = set(group.get("nice_check", list(NICE_CHECK_KEYS)))
+    if relationship_key in must_keys:
+        return "PITFALL"
+    if relationship_key in nice_keys:
+        return "HYGIENE"
+    return "GOOD_TO_HAVE"

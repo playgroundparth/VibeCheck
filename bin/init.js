@@ -381,80 +381,97 @@ function seedArtifactGroups(cwd, vgDir) {
 
   const groups = {};
 
+  const now = new Date().toISOString();
+
+  function makeGroup(fields) {
+    const mustCheckKeys = ["installed_by", "removed_by", "wired_by"];
+    const niceCheckKeys = ["documented_in", "updated_by", "auth_checked_by", "migrations_in", "seed_in"];
+    return {
+      ...fields,
+      must_check: mustCheckKeys.filter(k => fields[k]),
+      nice_check: niceCheckKeys.filter(k => fields[k]),
+      confidence: "seeded",
+      evidence: ["detected at init time from project directory structure"],
+      times_confirmed: 0,
+      created_at: now,
+      last_confirmed: null,
+    };
+  }
+
   // Slash commands pattern (VibeCheck-style or similar tool)
   if (fs.existsSync(path.join(cwd, "commands"))) {
     const hasBin = fs.existsSync(path.join(cwd, "bin", "init.js")) ||
                    fs.existsSync(path.join(cwd, "bin", "install.js"));
     if (hasBin) {
-      groups["slash_commands"] = {
+      groups["slash_commands"] = makeGroup({
         description: "Slash command files — installed, updated, and removed by lifecycle scripts",
         source_glob: "commands/*.md",
         installed_by: ["bin/init.js", "bin/update.js"],
         updated_by: ["bin/update.js"],
         removed_by: ["bin/uninstall.js"],
         documented_in: ["README.md", "bin/cli.js"],
-      };
+      });
     }
   }
 
   // Hooks pattern
   if (fs.existsSync(path.join(cwd, "hooks")) &&
       fs.existsSync(path.join(cwd, "bin", "init.js"))) {
-    groups["hooks"] = {
+    groups["hooks"] = makeGroup({
       description: "Hook files — installed and wired into settings by lifecycle scripts",
       source_glob: "hooks/*.py",
       installed_by: ["bin/init.js", "bin/update.js"],
       updated_by: ["bin/update.js"],
       removed_by: ["bin/uninstall.js"],
       wired_by: ["bin/init.js"],
-    };
+    });
   }
 
   // Next.js App Router API routes
   if (fs.existsSync(path.join(cwd, "app", "api"))) {
-    groups["api_routes"] = {
+    groups["api_routes"] = makeGroup({
       description: "Next.js API route handlers — must have auth middleware",
       source_glob: "app/api/**/*.ts",
       auth_checked_by: ["middleware.ts", "lib/auth.ts", "lib/middleware.ts"],
       documented_in: ["README.md"],
-    };
+    });
   }
 
   // Next.js Pages Router API routes
-  if (fs.existsSync(path.join(cwd, "pages", "api"))) {
-    groups["api_routes"] = {
+  if (!groups["api_routes"] && fs.existsSync(path.join(cwd, "pages", "api"))) {
+    groups["api_routes"] = makeGroup({
       description: "Next.js API route handlers — must have auth middleware",
       source_glob: "pages/api/**/*.ts",
       auth_checked_by: ["middleware.ts", "lib/auth.ts"],
-    };
+    });
   }
 
   // Prisma schema — changes require migrations
   if (fs.existsSync(path.join(cwd, "prisma", "schema.prisma"))) {
-    groups["db_schema"] = {
+    groups["db_schema"] = makeGroup({
       description: "Database schema — changes must have a corresponding migration",
       source_glob: "prisma/schema.prisma",
       migrations_in: ["prisma/migrations/"],
       seed_in: ["prisma/seed.ts", "prisma/seed.js"],
-    };
+    });
   }
 
   // Express/Fastify routes
-  if (fs.existsSync(path.join(cwd, "src", "routes")) ||
-      fs.existsSync(path.join(cwd, "routes"))) {
+  if (!groups["api_routes"] && (fs.existsSync(path.join(cwd, "src", "routes")) ||
+      fs.existsSync(path.join(cwd, "routes")))) {
     const routeDir = fs.existsSync(path.join(cwd, "src", "routes")) ? "src/routes" : "routes";
-    groups["api_routes"] = groups["api_routes"] || {
+    groups["api_routes"] = makeGroup({
       description: "API route handlers — must have auth middleware",
       source_glob: `${routeDir}/**/*.{js,ts}`,
       auth_checked_by: ["middleware/auth.js", "middleware/auth.ts", "src/middleware/auth.ts"],
-    };
+    });
   }
 
   if (Object.keys(groups).length === 0) return;
 
   existing.artifact_groups = groups;
   if (!existing.version) existing.version = 1;
-  existing.last_built = existing.last_built || new Date().toISOString();
+  existing.last_built = existing.last_built || now;
 
   try {
     fs.writeFileSync(mapPath, JSON.stringify(existing, null, 2));

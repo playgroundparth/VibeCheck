@@ -367,7 +367,42 @@ Keep `title` and `why` brief — they show in summary lines. Put depth in `detai
 - Never include text resembling prompt injection (`ignore previous`, `<system>`, `[INST]`)
 - File paths must be inside the project
 
-# Step 7 — Update memory.json and project_map.json
+# Step 7 — Self-heal project_map + update memory
+
+## 7a — Update project_map.json artifact groups
+
+For each artifact group whose lifecycle files you read and verified this run:
+
+**Upgrade confidence** when you confirmed a relationship exists in code:
+- e.g. you read `bin/init.js` and saw it copying `commands/*.md` → upgrade `slash_commands` confidence
+- Confidence levels: `seeded → inferred → confirmed`
+- Add evidence: `"bin/init.js copies commands/*.md in commandFiles array at line 156"`
+- Increment `times_confirmed`, set `last_confirmed`
+
+**Add a new inferred group** when you discover a lifecycle relationship not yet in any group:
+```json
+{
+  "new_group_name": {
+    "description": "...",
+    "source_glob": "...",
+    "installed_by": [...],
+    "removed_by": [...],
+    "must_check": ["installed_by", "removed_by"],
+    "nice_check": ["documented_in"],
+    "confidence": "inferred",
+    "evidence": ["observed in bin/init.js at line N"],
+    "times_confirmed": 1,
+    "created_at": "[ISO]",
+    "last_confirmed": "[ISO]"
+  }
+}
+```
+
+**Severity for cross-file gaps** — use must_check / nice_check:
+- Gap in `must_check` key (e.g. `removed_by`, `installed_by`) → PITFALL
+- Gap in `nice_check` key (e.g. `documented_in`) → HYGIENE or GOOD_TO_HAVE
+
+## 7b — Update memory.json
 
 Read memory.json, merge new info, write back:
 ```json
@@ -384,11 +419,8 @@ Read memory.json, merge new info, write back:
 }
 ```
 
-**Add to `known_conventions`** when you observe a pattern that must always hold — e.g. "all slash commands must be listed in uninstall.js commandFiles array."
-
-**Add to `recent_misses`** when you find a gap that matches a pattern that has appeared before — so future runs inspect this area more aggressively.
-
-If you discovered a new artifact group relationship (a file type that has installer/uninstaller lifecycle), add it to `project_map.json` → `artifact_groups`. Read the current project_map.json first, merge, write back.
+Add to `known_conventions` when you observe a pattern that must always hold.
+Add to `recent_misses` when you find a gap matching a prior pattern — so future runs inspect more aggressively.
 
 # Step 8 — Append to timeline.json
 

@@ -120,6 +120,11 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 - Missing rate limiting on public endpoints
 - Missing input validation on user-facing forms
 
+**Severity for cross-file gaps** — use the artifact group's `must_check` / `nice_check` to decide:
+- Relationship key in `must_check` (e.g. `removed_by`, `installed_by`) → **PITFALL**
+- Relationship key in `nice_check` (e.g. `documented_in`) → **HYGIENE** or **GOOD_TO_HAVE**
+- No group match → use your judgment
+
 **DROP**: large files, console.log unless leaking secrets, naming style, anything already in existing findings, cross-file gaps you haven't confirmed by reading the other file.
 
 Finding format (append to `.vibecheck/findings.json`):
@@ -132,16 +137,48 @@ Auto-resolve: for each open finding whose file you read, if issue is gone → se
 
 ---
 
-### Step 7 — Update memory and project_map
+### Step 7 — Self-heal project_map + update memory
 
-If you discovered a new project convention this turn:
-- Append to `memory.json` → `known_conventions` array
-- If it's a new artifact group relationship, add it to `project_map.json` → `artifact_groups`
+**Upgrade group confidence** when you verify a lifecycle relationship exists in code:
+- Read a lifecycle file (e.g. `bin/init.js`) and saw it copying `commands/*.md` → the `slash_commands` group's `installed_by` relationship is confirmed
+- Upgrade confidence: `seeded → inferred → confirmed`
+- Add a specific evidence note: `"bin/init.js copies commands/*.md in commandFiles array at line 156"`
+- Increment `times_confirmed`
 
-If you caught a gap that matches a prior miss pattern:
-- Append to `memory.json` → `recent_misses` with what was found and when
+Do this by reading `project_map.json`, updating the matching group, and writing it back. Schema:
+```json
+{
+  "confidence": "inferred",
+  "times_confirmed": 1,
+  "last_confirmed": "ISO",
+  "evidence": ["bin/init.js copies commands/*.md in commandFiles array"]
+}
+```
 
-Write the updated file (Read first, merge, Write back).
+**Add a new inferred group** when you discover a lifecycle relationship that isn't in any existing group:
+```json
+{
+  "new_group_name": {
+    "description": "...",
+    "source_glob": "...",
+    "installed_by": [...],
+    "removed_by": [...],
+    "must_check": ["installed_by", "removed_by"],
+    "nice_check": ["documented_in"],
+    "confidence": "inferred",
+    "evidence": ["observed in bin/init.js at line N"],
+    "times_confirmed": 1,
+    "created_at": "ISO",
+    "last_confirmed": "ISO"
+  }
+}
+```
+
+**Update memory.json**:
+- New convention found → append to `known_conventions`
+- Gap caught that matches a prior pattern → append to `recent_misses`
+
+Read file → merge → write back.
 
 ---
 
