@@ -114,6 +114,22 @@ for (const f of commandFiles) {
   }
 }
 
+// Update agent files
+const agentFiles = [
+  ["agents/scanner.md", "vibecheck-scanner.md"],
+  ["agents/scanner-deep.md", "vibecheck-scanner-deep.md"],
+];
+const agentsDir = path.join(claudeDir, "agents");
+fs.mkdirSync(agentsDir, { recursive: true });
+for (const [src, dst] of agentFiles) {
+  const srcPath = path.join(VIBECHECK_ROOT, src);
+  const dstPath = path.join(agentsDir, dst);
+  if (fs.existsSync(srcPath)) {
+    fs.copyFileSync(srcPath, dstPath);
+    updated.push(`agents/${dst}`);
+  }
+}
+
 // Update skill file
 const skillSrc = path.join(VIBECHECK_ROOT, "vibecheck.md");
 const skillDst = path.join(claudeDir, "skills", "vibecheck.md");

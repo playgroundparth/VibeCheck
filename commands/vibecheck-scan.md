@@ -1,4 +1,6 @@
-Run a VibeCheck full-repo scan using the vibecheck-scanner agent.
+Run a VibeCheck scan of this codebase.
+
+Arguments: $ARGUMENTS
 
 First confirm VibeCheck is initialized:
 ```bash
@@ -8,11 +10,26 @@ import sys; from pathlib import Path
 sys.path.insert(0, '$ROOT/.claude/hooks/lib')
 import project, store
 cwd = project.find_project_root(Path('$ROOT'))
+if not cwd or not store.is_initialized(cwd):
+    print('VibeCheck not initialized. Run: npx github:playgroundparth/VibeCheck init')
+    sys.exit(1)
 print('project:', cwd)
-print('initialized:', store.is_initialized(cwd) if cwd else False)
-"
+" 2>&1
 ```
 
-Then invoke the SubAgent tool with agent `vibecheck-scanner` to run the full scan.
+If the check above fails, stop here.
 
-After the scan completes, read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity.
+## Choose scanner based on arguments
+
+Parse `$ARGUMENTS`:
+
+**`--deep`** → invoke SubAgent `vibecheck-scanner-deep` (Sonnet model, reads up to 35 files, up to 20 findings). Use when you want thorough analysis, are scanning a large or security-critical codebase, or the standard scan missed something you expected to catch.
+
+**`--quick`** or empty → invoke SubAgent `vibecheck-scanner` (Haiku model, reads up to 20 files, up to 15 findings). Fast and cheap (~$0.02). Good for a first scan or after a batch of changes.
+
+**Anything else** (e.g. `auth`, `src/queue`, `payments`) → invoke SubAgent `vibecheck-scanner` but include the argument as a focus instruction in the SubAgent prompt:
+> "Focus this scan specifically on: [argument]. In Phase 2, prioritize reading files related to that area. You may still read a broader file or two for project context, but spend most of your file budget on the focus area."
+
+## After the scan
+
+Read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity using the same format as `/vibecheck`.

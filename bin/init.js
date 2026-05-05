@@ -159,6 +159,10 @@ async function main() {
     path.join(VIBEGUARD_ROOT, "agents", "scanner.md"),
     path.join(claudeDir, "agents", "vibecheck-scanner.md")
   );
+  copyFile(
+    path.join(VIBEGUARD_ROOT, "agents", "scanner-deep.md"),
+    path.join(claudeDir, "agents", "vibecheck-scanner-deep.md")
+  );
   console.log("✓ Installed agents → .claude/agents/");
 
   // Copy skill (context for Claude about VibeCheck)

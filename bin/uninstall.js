@@ -117,7 +117,18 @@ if (fs.existsSync(skillsDir)) {
   } catch {}
 }
 
-// 3. Remove commands
+// 3. Remove agents
+const agentFiles = ["vibecheck-scanner.md", "vibecheck-scanner-deep.md"];
+const agentsDir = path.join(claudeDir, "agents");
+for (const f of agentFiles) {
+  const p = path.join(agentsDir, f);
+  if (fs.existsSync(p)) {
+    fs.rmSync(p);
+    removed.push(`.claude/agents/${f}`);
+  }
+}
+
+// 4. Remove commands
 const commandFiles = [
   "vibecheck.md", "vibecheck-resolve.md", "vibecheck-scan.md",
   "vibecheck-review.md", "vibecheck-stage.md",
@@ -131,7 +142,7 @@ for (const f of commandFiles) {
   }
 }
 
-// 4. Strip VibeCheck sections from CLAUDE.md
+// 5. Strip VibeCheck sections from CLAUDE.md
 const claudeMdPath = path.join(cwd, "CLAUDE.md");
 if (fs.existsSync(claudeMdPath)) {
   if (stripClaudeMd(claudeMdPath)) {
@@ -141,7 +152,7 @@ if (fs.existsSync(claudeMdPath)) {
   }
 }
 
-// 5. Remove from global registry
+// 6. Remove from global registry
 const registryPath = path.join(os.homedir(), ".vibecheck", "registry.json");
 if (fs.existsSync(registryPath)) {
   try {
@@ -159,7 +170,7 @@ if (fs.existsSync(registryPath)) {
   } catch {}
 }
 
-// 6. Remove .vibecheck/ unless --keep-data
+// 7. Remove .vibecheck/ unless --keep-data
 if (!keepData) {
   if (fs.existsSync(vgDir)) {
     fs.rmSync(vgDir, { recursive: true });
