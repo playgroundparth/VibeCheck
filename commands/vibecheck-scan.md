@@ -43,7 +43,13 @@ If no focus: no focus instruction needed.
 
 ## After the scan
 
-Read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity — same format as `/vibecheck`.
+Run this and display the output exactly as-is:
+```bash
+ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
+PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/lib/vg_display.py" 2>/dev/null
+```
+
+Do not rewrite, reorder, or summarize the output. Display it verbatim.
 
 ## Quick reference
 
