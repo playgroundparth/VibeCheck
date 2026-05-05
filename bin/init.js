@@ -152,12 +152,12 @@ async function main() {
     "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
     "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
     "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
-    "vibecheck-model.md",
+    "vibecheck-model.md", "vibecheck-review.md",
   ];
   for (const f of commandFiles) {
     copyFile(path.join(VIBEGUARD_ROOT, "commands", f), path.join(commandsDir, f));
   }
-  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status, /vibecheck-report, /vibecheck-timeline, /vibecheck-skills, /vibecheck-model)");
+  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-detail, /vibecheck-resolve, /vibecheck-scan, /vibecheck-status, /vibecheck-report, /vibecheck-timeline, /vibecheck-skills, /vibecheck-model, /vibecheck-review)");
 
   // Copy hooks
   copyFile(

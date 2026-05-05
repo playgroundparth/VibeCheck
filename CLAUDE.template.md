@@ -98,31 +98,36 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 
 ### Step 6 — Write findings
 
-**CRITICAL** — concrete exploit OR code that will definitely crash or corrupt data in production:
-- Route handles user data without auth check
-- User input in DB query (SQL injection)
-- User-controlled path in file read/write (path traversal)
-- Webhook/payment endpoint without signature verification
-- API response leaks data the caller shouldn't see
+**CRITICAL** — concrete exploit OR code that will definitely crash or corrupt data:
+- AUTH-01: Route reads/writes user data, no auth check before first DB call
+- AUTH-02: Webhook endpoint parses body without signature verification (Stripe, Svix, GitHub)
+- AUTH-03: Service-role or admin key used in a public/non-admin route
+- DATA-02: Schema changed with no migration file
+- DATA-04: Payment event processed without idempotency check (Stripe retries = double charge)
 - Secret/credential hardcoded in source
-- Logic that will definitely crash or corrupt (wrong condition on write, missing null check on field that will be null)
+- Exported function signature changed but callers not updated (ARCH-08)
 
 **PITFALL** — works today, causes pain later:
-- OVERBUILDING — complexity that exceeds what this stage needs (caching before load, premature abstraction)
-- REINVENTING — building something that already exists and works better (custom JWT, custom email, custom queues)
-- WRONG ABSTRACTION — structure that will resist the next obvious change
-- DEAD_ON_ARRIVAL — new file or module created, confirmed by grep that nothing imports it yet; ships as dead weight and gets harder to delete as it ages
-- In-memory state that won't survive restarts
-- Silent production side-effects — debug flags, verbose logging, or dev-mode settings written to config files that ship to all users (e.g. `DEBUG=1` in a settings.json that gets committed or copied to every install)
+- AUTH-04: Auth check after data fetch (check first, always)
+- AUTH-06: Custom JWT when the project's auth library handles it
+- ARCH-01: Service/factory/interface for a single DB call — delete it
+- ARCH-03/04: Custom email or job queue instead of Resend/Inngest
+- DEAD_ON_ARRIVAL: new file confirmed by grep to have no callers
+- DATA-01: In-memory rate limiter or counter (dies on restart)
+- DATA-08: No DB connection pooling in serverless deployment
+- DATA-06: Read-then-write without transaction (race condition)
+- Silent production side-effects — debug flags in config files shipped to all users
 - Cross-file inconsistency — confirmed after reading the maintenance file
 
-**HYGIENE** — missing something that should be there:
+**HYGIENE** — missing something standard:
+- `await` without try/catch in payment, auth, or DB paths (DATA-03)
 - Non-trivial feature with no test file
-- `await` without try/catch in payment, auth, or DB paths
 
-**GOOD_TO_HAVE** — minor nudge, not blocking:
+**GOOD_TO_HAVE** — minor, never blocking:
 - Missing rate limiting on public endpoints
 - Missing input validation on user-facing forms
+
+Full anti-pattern catalog (30 patterns with fix prompts) available via `/vibecheck-review`.
 
 **Severity for cross-file gaps** — use the artifact group's `must_check` / `nice_check` to decide:
 - Relationship key in `must_check` (e.g. `removed_by`, `installed_by`) → **PITFALL**
