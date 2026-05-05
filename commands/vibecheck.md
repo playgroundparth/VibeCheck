@@ -36,8 +36,9 @@ if fid:
     if f.get('why'): print(f\"Why it matters:\n{f['why']}\n\")
     if f.get('details'): print(f\"Detail:\n{f['details']}\n\")
     if f.get('fix_prompt'): print(f\"Fix — paste to Claude:\n{f['fix_prompt']}\n\")
-    print(f\"Status: {f.get('status','open')} | Source: {f.get('source','')} | Detected: {f.get('detected_at','')[:10]}\")
-    print(f\"\nResolve with: /vibecheck-resolve {fid}\")
+    print(f\"Status: {f.get('status','open')} · Source: {f.get('source','')} · Detected: {f.get('detected_at','')[:10]}\")
+    resolve_cmd = '/vibecheck-resolve ' + fid
+    print(f\"\n\`{resolve_cmd}\`\")
     sys.exit(0)
 " 2>/dev/null
 # Summary view (no ID passed)
