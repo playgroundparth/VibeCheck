@@ -3,7 +3,7 @@
 VibeCheck ignore patterns.
 
 Reads .vibecheck-ignore (if present) and merges with sensible defaults.
-Used by project_map (skip during indexing) and file_selection (skip during analysis).
+Used by project_map (skip during indexing).
 
 Format is gitignore-like:
   # comments

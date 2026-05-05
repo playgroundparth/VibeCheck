@@ -79,9 +79,9 @@ for (const f of hookFiles) {
 // Remove lib files installed by VibeCheck
 const libFiles = [
   "store.py", "static_checks.py", "patterns.py", "guardrails.py",
-  "project.py", "project_map.py", "file_selection.py", "integrations.py",
-  "health_report.py", "ignore.py", "metrics.py", "context_extractor.py",
-  "vg_display.py", "analyzer_direct.py", "telemetry.py",
+  "project.py", "project_map.py", "health_report.py", "ignore.py",
+  "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
+  "file_selection.py", "integrations.py", "analyzer_direct.py",
 ];
 const libDir = path.join(hooksDir, "lib");
 if (fs.existsSync(libDir)) {

@@ -2,7 +2,7 @@
 
 Build with AI — without second-guessing every decision.
 
-VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no extra cost.
+VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no separate API calls. The analysis adds tokens to each response with file changes, which counts against your existing Claude Code usage.
 
 ## What it looks like
 
@@ -121,15 +121,6 @@ The verdict is a holistic judgment, not a mechanical count.
 - Activity timeline (what changed and when)
 - Learned patterns VibeCheck has built for your project
 
-## Works better with these tools
-
-VibeCheck detects these automatically during `init` and uses them if present — no extra setup needed:
-
-**[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — if you have OpenSpec active, VibeCheck cross-references your API specs when analyzing routes. It can flag when a new endpoint isn't in the spec, or when implementation diverges from the declared contract.
-
-**[ICM](https://github.com/rtk-ai/icm)** — if you have ICM (Intelligent Context Memory) installed, VibeCheck uses it as a richer memory store for project context. Without ICM, VibeCheck falls back to its own `.vibecheck/context_log.jsonl`.
-
-**[Graphify](https://graphify.net/)** — if you have a Graphify code graph, VibeCheck uses it to understand blast radius when files change (which other files are affected), improving which files it chooses to analyze.
 
 ## What VibeCheck catches
 
@@ -188,9 +179,8 @@ Reports pass/warn/fail for every component: hook files, lib files, commands, glo
 ## Privacy
 
 - All findings are stored locally in `.vibecheck/` (auto-added to `.gitignore`)
-- Anonymous usage stats are **off by default** — you're asked during `init`
-- If opted in: only event names and counts are sent, never file paths, code, or finding content
-- Opt out anytime: `VIBECHECK_TELEMETRY=0` or `DO_NOT_TRACK=1`
+- Usage telemetry is **currently not collected** — the opt-in dialog is placeholder until a PostHog project is configured. No data is sent regardless of your answer during `init`.
+- When telemetry is enabled in a future release: only event names and counts will be sent (never file paths, code, or finding content), via PostHog. You'll be able to opt out with `VIBECHECK_TELEMETRY=0` or `DO_NOT_TRACK=1`.
 
 ## Development
 

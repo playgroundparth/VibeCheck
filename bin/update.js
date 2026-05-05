@@ -35,9 +35,8 @@ let updated = [];
 // Update lib files
 const libFiles = [
   "store.py", "static_checks.py", "patterns.py", "guardrails.py",
-  "project.py", "project_map.py", "file_selection.py", "integrations.py",
-  "health_report.py", "ignore.py", "metrics.py", "context_extractor.py",
-  "vg_display.py", "analyzer_direct.py", "telemetry.py",
+  "project.py", "project_map.py", "health_report.py", "ignore.py",
+  "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
 ];
 const libDir = path.join(claudeDir, "hooks", "lib");
 fs.mkdirSync(libDir, { recursive: true });

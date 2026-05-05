@@ -301,7 +301,7 @@ def blast_radius(cwd: Path, changed_files: List[Path], max_depth: int = 2) -> Li
     Uses reverse_deps map. BFS up to max_depth.
 
     If the project map doesn't exist, returns empty list (caller falls back
-    to direct-imports approach in file_selection.py).
+    to direct analysis of changed files).
     """
     map_data = load_map(cwd)
     if not map_data:

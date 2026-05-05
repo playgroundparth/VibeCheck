@@ -120,9 +120,8 @@ async function main() {
   // Copy lib files
   const libFiles = [
     "store.py", "static_checks.py", "patterns.py", "guardrails.py",
-    "project.py", "project_map.py", "file_selection.py",
-    "integrations.py", "health_report.py", "ignore.py", "metrics.py",
-    "context_extractor.py",
+    "project.py", "project_map.py", "health_report.py", "ignore.py",
+    "metrics.py", "context_extractor.py",
   ];
   libFiles.forEach((f) => {
     copyFile(
@@ -133,10 +132,6 @@ async function main() {
   console.log("✓ Installed lib → .claude/hooks/lib/");
 
   // Copy agents
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "agents", "analyzer.md"),
-    path.join(claudeDir, "agents", "vibecheck-analyzer.md")
-  );
   copyFile(
     path.join(VIBEGUARD_ROOT, "agents", "scanner.md"),
     path.join(claudeDir, "agents", "vibecheck-scanner.md")
@@ -489,8 +484,6 @@ function wireHooks(claudeDir) {
     try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); }
     catch { settings = {}; }
   }
-  if (!settings.env) settings.env = {};
-  settings.env.VIBEGUARD_DEBUG = "1";
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 
   // Wire hooks into ~/.claude/settings.json
@@ -518,7 +511,7 @@ function wireHooks(claudeDir) {
   const stopHook = {
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_stop.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_stop.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_stop.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_stop.py"`,
       async: false, timeout: 60,
     }],
   };
@@ -530,7 +523,7 @@ function wireHooks(claudeDir) {
   const startHook = {
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_session_start.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_session_start.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_session_start.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_session_start.py"`,
       async: false, timeout: 35,
     }],
   };
@@ -543,7 +536,7 @@ function wireHooks(claudeDir) {
     matcher: "Read|Write|Edit|MultiEdit",
     hooks: [{
       type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_post_tool.py" ] && VIBEGUARD_DEBUG=1 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_post_tool.py"`,
+      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_post_tool.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_post_tool.py"`,
       async: true,
     }],
   };
