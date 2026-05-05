@@ -99,29 +99,12 @@ The verdict is a holistic judgment, not a mechanical count.
 
 | Command | What it does |
 |---|---|
-| `/vibecheck` | Show open findings with fix prompts |
-| `/vibecheck-detail vg-001` | Full detail on one finding |
-| `/vibecheck-resolve vg-001` | Mark as resolved |
-| `/vibecheck-scan` | Run a one-time scan of your codebase |
-| `/vibecheck-status` | Health metrics — findings, resolution rate, cost |
-| `/vibecheck-timeline` | Activity log — what changed and when |
-| `/vibecheck-report` | Generate a full HTML health dashboard |
-| `/vibecheck-review` | Skeptical senior-dev review of everything changed since last commit — full 30-pattern catalog |
+| `/vibecheck` | Show open findings summary |
+| `/vibecheck vg-001` | Full detail on one finding |
+| `/vibecheck-resolve vg-001` | Mark a finding as resolved |
+| `/vibecheck-scan` | Full scan of existing codebase (one-time catch-up) |
+| `/vibecheck-review` | Senior-dev review of everything changed since last commit |
 | `/vibecheck-stage mvp\|growth\|prod` | Set project stage to adjust severity thresholds |
-| `/vibecheck-skills` | Review proposed skills |
-| `/vibecheck-promote-skill` | Promote a proposed skill to active |
-| `/vibecheck-model haiku\|sonnet` | Switch analyzer model |
-| `/vibecheck-doctor` | Check installation health |
-
-## Health report
-
-`/vibecheck-report` generates `.vibecheck/health-report.html` — a full dashboard you can open in a browser:
-
-- All open findings grouped by severity, with effort/impact tags
-- Quick wins (high impact, low effort) called out separately
-- Resolved findings history
-- Activity timeline (what changed and when)
-- Learned patterns VibeCheck has built for your project
 
 
 ## What VibeCheck catches

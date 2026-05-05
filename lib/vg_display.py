@@ -20,7 +20,19 @@ def rel_path(file_str, cwd):
     except ValueError:
         return f"{path_str}{line}"
 
-def format_finding(f, cwd):
+def format_finding_compact(f, cwd):
+    """One-line summary for the default list view."""
+    fid   = f.get("id", "?")
+    sev   = f.get("severity", "")
+    title = f.get("title", "Untitled")
+    icon  = SEV_ICON.get(sev, "•")
+    file_str = f.get("file") or (f.get("file_paths") or [""])[0]
+    rel = rel_path(file_str, cwd) if file_str else None
+    loc = f"  *{rel}*" if rel else ""
+    return f"{icon} **{fid}** — {title}{loc}"
+
+def format_finding_detail(f, cwd):
+    """Full detail view for /vibecheck <id>."""
     fid   = f.get("id", "?")
     sev   = f.get("severity", "")
     title = f.get("title", "Untitled")
@@ -43,7 +55,7 @@ def format_finding(f, cwd):
         out.append(f"\n{details}")
     if fix:
         out.append(f"\n**Fix** — paste to Claude:\n```\n{fix.strip()}\n```")
-    out.append(f"\n`/vibecheck-resolve {fid}` · `/vibecheck-detail {fid}`")
+    out.append(f"\n`/vibecheck-resolve {fid}`")
     return "\n".join(out)
 
 def main():
@@ -77,14 +89,15 @@ def main():
             continue
         print(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
         for f in bucket:
-            print(format_finding(f, cwd))
-            print("\n---\n")
+            print(format_finding_compact(f, cwd))
+        print()
 
     counts = {s: sum(1 for f in open_findings if f.get("severity") == s) for s in SEV_ICON}
     summary = " · ".join(f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s])
     print(f"**{len(open_findings)} open findings** — {summary}")
     if resolved:
         print(f"✅ {len(resolved)} resolved")
+    print(f"\nType `/vibecheck <id>` for full detail and fix prompt.")
 
 if __name__ == "__main__":
     main()
