@@ -20,40 +20,31 @@ def rel_path(file_str, cwd):
     except ValueError:
         return f"{path_str}{line}"
 
-def format_finding_verbose(f, cwd):
-    """Full card: title + file + why + fix + resolve link. Used for CRITICAL and PITFALL."""
+def _file_ref(f, cwd):
+    file_str = f.get("file") or (f.get("file_paths") or [""])[0]
+    r = rel_path(file_str, cwd) if file_str else None
+    return f"  *{r}*" if r else ""
+
+def format_critical(f, cwd):
+    """CRITICAL: title + file + one-line why + detail hint. Short but informative."""
+    fid   = f.get("id", "?")
+    title = f.get("title", "Untitled")
+    loc   = _file_ref(f, cwd)
+    why   = (f.get("why") or f.get("description", "")).split("\n")[0][:140]
+    out   = [f"🔴 **{fid}** {title}{loc}"]
+    if why:
+        out.append(f"   {why}")
+    out.append(f"   `/vibecheck {fid}` for fix · `/vibecheck-resolve {fid}`")
+    return "\n".join(out)
+
+def format_oneliner(f, cwd):
+    """One line: icon + id + title + file. Used for PITFALL, HYGIENE, GOOD_TO_HAVE."""
     fid   = f.get("id", "?")
     sev   = f.get("severity", "")
     title = f.get("title", "Untitled")
     icon  = SEV_ICON.get(sev, "•")
-
-    file_str   = f.get("file") or ""
-    file_paths = f.get("file_paths") or ([file_str] if file_str else [])
-    rel_files  = [rel_path(fp, cwd) for fp in file_paths if fp]
-
-    why  = f.get("why") or f.get("description", "")
-    fix  = f.get("fix_prompt", "")
-
-    out = [f"**{fid}** {icon} {title}"]
-    if rel_files:
-        out.append(f"*{', '.join(r for r in rel_files if r)}*")
-    if why:
-        out.append(f"\n{why}")
-    if fix:
-        out.append(f"\n**Fix** — paste to Claude:\n```\n{fix.strip()}\n```")
-    out.append(f"\n`/vibecheck-resolve {fid}`")
-    return "\n".join(out)
-
-def format_finding_compact(f, cwd):
-    """One-liner: icon + id + title + file. Used for HYGIENE and GOOD_TO_HAVE."""
-    fid      = f.get("id", "?")
-    sev      = f.get("severity", "")
-    title    = f.get("title", "Untitled")
-    icon     = SEV_ICON.get(sev, "•")
-    file_str = f.get("file") or (f.get("file_paths") or [""])[0]
-    rel      = rel_path(file_str, cwd) if file_str else None
-    loc      = f"  *{rel}*" if rel else ""
-    return f"{icon} **{fid}** — {title}{loc}"
+    loc   = _file_ref(f, cwd)
+    return f"{icon} **{fid}** {title}{loc}"
 
 def main():
     cwd = project.find_project_root(Path("."))
@@ -80,34 +71,34 @@ def main():
         print(msg)
         return
 
-    # CRITICAL and PITFALL: full verbose cards (why + fix prompt — need context to act)
-    for sev in ["CRITICAL", "PITFALL"]:
-        bucket = [f for f in open_findings if f.get("severity") == sev]
-        if not bucket:
-            continue
-        print(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
-        for f in bucket:
-            print(format_finding_verbose(f, cwd))
-            print("\n---\n")
+    # CRITICAL: compact card with one-line why (urgent, but full fix is one step away)
+    criticals = [f for f in open_findings if f.get("severity") == "CRITICAL"]
+    if criticals:
+        print("## 🔴 Fix before shipping\n")
+        for f in criticals:
+            print(format_critical(f, cwd))
+            print()
 
-    # HYGIENE and GOOD_TO_HAVE: compact one-liners (less urgent, /vibecheck <id> for detail)
-    for sev in ["HYGIENE", "GOOD_TO_HAVE"]:
+    # PITFALL, HYGIENE, GOOD_TO_HAVE: one-liners — run /vibecheck <id> for detail
+    for sev in ["PITFALL", "HYGIENE", "GOOD_TO_HAVE"]:
         bucket = [f for f in open_findings if f.get("severity") == sev]
         if not bucket:
             continue
         print(f"## {SEV_ICON[sev]} {SEV_LABEL[sev]}\n")
-        for f in bucket:
-            print(format_finding_compact(f, cwd))
+        # GOOD_TO_HAVE: group all IDs on one line to save space
+        if sev == "GOOD_TO_HAVE":
+            ids = " · ".join(f"**{f.get('id','?')}**" for f in bucket)
+            print(f"💡 {ids}")
+        else:
+            for f in bucket:
+                print(format_oneliner(f, cwd))
         print()
 
     counts = {s: sum(1 for f in open_findings if f.get("severity") == s) for s in SEV_ICON}
-    summary = " · ".join(f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s])
-    print(f"\n**{len(open_findings)} open findings** — {summary}")
-    if resolved:
-        print(f"✅ {len(resolved)} resolved")
-    lower = sum(counts.get(s, 0) for s in ["HYGIENE", "GOOD_TO_HAVE"])
-    if lower:
-        print(f"💡 Type `/vibecheck <id>` for full detail and fix prompt on any finding.")
+    parts  = [f"{SEV_ICON[s]} {counts[s]}" for s in SEV_ICON if counts[s]]
+    res    = f" · ✅ {len(resolved)} resolved" if resolved else ""
+    print(f"**{len(open_findings)} open** — {' · '.join(parts)}{res}")
+    print("Run `/vibecheck <id>` for full detail + fix prompt.")
 
 if __name__ == "__main__":
     main()
