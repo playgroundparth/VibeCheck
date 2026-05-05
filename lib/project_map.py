@@ -346,3 +346,92 @@ def get_file_summary(cwd: Path, file_path: str) -> Optional[Dict]:
 def _now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
+
+
+# ─── Artifact groups: lifecycle relationships between files ───────────────────
+
+def get_artifact_groups(cwd: Path) -> Dict:
+    """
+    Return artifact_groups from project_map.json.
+
+    Artifact groups describe lifecycle relationships — which files install,
+    update, remove, or document each category of artifact. This is what lets
+    VibeCheck ask "you added a command file — did you update uninstall.js?"
+
+    Schema:
+    {
+      "slash_commands": {
+        "description": "Slash command files installed into .claude/commands/",
+        "source_glob": "commands/*.md",
+        "installed_by": ["bin/init.js", "bin/update.js"],
+        "removed_by": ["bin/uninstall.js"],
+        "documented_in": ["README.md", "bin/cli.js"]
+      }
+    }
+    """
+    map_data = load_map(cwd)
+    if not map_data:
+        return {}
+    return map_data.get("artifact_groups", {})
+
+
+def save_artifact_groups(cwd: Path, groups: Dict):
+    """Merge artifact_groups into project_map.json without touching other fields."""
+    map_data = load_map(cwd) or {
+        "version": MAP_VERSION, "files": {}, "reverse_deps": {},
+        "last_built": _now_iso(),
+    }
+    map_data["artifact_groups"] = groups
+    map_data["last_built"] = _now_iso()
+    save_map(cwd, map_data)
+
+
+def find_artifact_group(file_path: str, groups: Dict) -> Optional[tuple]:
+    """
+    Given a relative file path, return (group_name, group_dict) if the file
+    matches a source_glob in any artifact group. Returns (None, None) if no match.
+    """
+    import fnmatch
+    for name, group in groups.items():
+        glob = group.get("source_glob", "")
+        if not glob:
+            continue
+        # Match against full path or just filename
+        if fnmatch.fnmatch(file_path, glob) or fnmatch.fnmatch(file_path.split("/")[-1], glob.split("/")[-1]):
+            return name, group
+    return None, None
+
+
+def lifecycle_files_for_changed(cwd: Path, changed_files: List[Path]) -> Dict[str, List[str]]:
+    """
+    Given a list of changed files, return the lifecycle files that should be
+    checked for each changed file that matches an artifact group.
+
+    Returns {changed_file_rel: {"group": name, "check": [file, ...]}}
+    """
+    groups = get_artifact_groups(cwd)
+    if not groups:
+        return {}
+
+    result = {}
+    for f in changed_files:
+        try:
+            rel = str(f.relative_to(cwd))
+        except ValueError:
+            rel = str(f)
+
+        group_name, group = find_artifact_group(rel, groups)
+        if not group_name:
+            continue
+
+        check_files = []
+        for key in ("installed_by", "updated_by", "removed_by", "documented_in", "wired_by", "auth_checked_by"):
+            check_files.extend(group.get(key, []))
+
+        result[rel] = {
+            "group": group_name,
+            "description": group.get("description", ""),
+            "check": list(dict.fromkeys(check_files)),  # dedupe, preserve order
+        }
+
+    return result

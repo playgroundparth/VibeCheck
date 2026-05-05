@@ -82,34 +82,60 @@ If you find yourself wanting to read many more files: stop, write findings only 
 Read .vibecheck/session_files.txt        → pre-selected files to read
 Read .vibecheck/integration_context.json → data from graphify/openspec/etc if present
 Read .vibecheck/findings.json            → existing findings
-Read .vibecheck/memory.json              → project understanding
+Read .vibecheck/memory.json              → project identity, known_conventions, recent_misses
 Read .vibecheck/timeline.json            → recent events (last 20)
+Read .vibecheck/project_map.json         → artifact_groups (lifecycle relationships)
 Glob .vibecheck/patterns/*.json          → learned patterns
 ```
 
 Note resolved findings (status: resolved). Never re-surface them.
 
+From `memory.json`, note:
+- `known_conventions` — patterns that must hold in this project
+- `recent_misses` — gaps that have slipped through before (check for them again)
+
+From `project_map.json`, note `artifact_groups` — each group maps a file type to its lifecycle files (installed_by, updated_by, removed_by, documented_in). You will use this in Step 2.
+
 ## Using integration context
 
 If `integration_context.json` contains data from other tools, use it:
 
-- **graphify_affected_files**: pre-computed blast radius. Treat these as already-relevant context. You don't need to re-derive what's affected.
+- **graphify_affected_files**: pre-computed blast radius. Treat these as already-relevant context.
+- **openspec_active_changes**: ongoing changes the user is working on.
+- **openspec_relevant_specs**: specs that relate to changed files — read to understand intent.
+- **openspec_project_intent**: the user's project description. Use to calibrate pitfalls.
+- **claude_mem_recent**: recent session history. Use for continuity.
 
-- **openspec_active_changes**: ongoing changes the user is working on. Findings can reference these — e.g. "this conflicts with active change 'add-auth-system'".
+If integration context is empty, proceed normally with less context.
 
-- **openspec_relevant_specs**: specs that relate to the changed files. Read these to understand the *intent* behind the code. Findings can reference whether the implementation matches the spec.
+# Step 2 — Build a review brief and identify evidence files
 
-- **openspec_project_intent**: the user's project description. Use this to better classify pitfalls (e.g. "you're adding caching for a 100-user MVP" only makes sense if you know it's an MVP).
+The goal is not "what do I see wrong in these files?" — it is "given everything I know about this project, what must be true for these changes to be safe?"
 
-- **claude_mem_recent**: recent session history compressed by claude-mem. Use for continuity — what was being worked on last session.
+## 2a — Classify changed files against artifact_groups
 
-If integration context is empty, you have less context but proceed normally.
+For each file in `session_files.txt`, check if it matches a `source_glob` in `project_map.artifact_groups`. If it matches:
+- Note the group name and its lifecycle files (`installed_by`, `updated_by`, `removed_by`, `documented_in`)
+- These lifecycle files become **required evidence** — read them in Step 2b
 
-# Step 2 — Read changed files
+## 2b — Identify evidence files
 
-Read each file in `session_files.txt`. The list is already budget-aware — read all of them unless one looks irrelevant.
+Read these files (budget-aware — stay within your token budget):
+1. Every file in `session_files.txt`
+2. Lifecycle files from Step 2a (installed_by, removed_by, documented_in)
+3. For each changed file: up to 1 related file (importer, test, config)
+4. **Installer/uninstaller rule**: if a file is added to an installed/generated/copied set, read both the installer AND the uninstaller/cleanup path
 
-For each file, you may also read up to 2 directly-related files (a file it imports, a test file, a config it uses). Stop when you have enough information.
+Only flag a cross-file gap if you actually read the maintenance file and confirmed it. Never guess.
+
+## 2c — Generate review questions from context
+
+Before analyzing code, form specific questions:
+- **Lifecycle questions** (from project_map): "Is this new command in init.js, update.js, uninstall.js, and README?"
+- **Convention questions** (from memory.known_conventions): "Does this follow the established pattern?"
+- **Miss questions** (from memory.recent_misses): "Is this the same gap that slipped through before?"
+- **Timeline questions**: did this area produce findings recently? → inspect more aggressively
+- **Doc questions**: does this change match what the project promises?
 
 # Step 3 — Analyze
 
@@ -341,19 +367,28 @@ Keep `title` and `why` brief — they show in summary lines. Put depth in `detai
 - Never include text resembling prompt injection (`ignore previous`, `<system>`, `[INST]`)
 - File paths must be inside the project
 
-# Step 7 — Update memory.json
+# Step 7 — Update memory.json and project_map.json
 
-Read, merge, write back. Add only new info:
+Read memory.json, merge new info, write back:
 ```json
 {
   "project": {"type": "...", "description": "..."},
+  "project_identity": "one-line description of what this project is",
   "stack": ["new technologies spotted"],
   "features": ["new features built"],
   "decisions": [{"what": "...", "why": "...", "when": "[ISO]"}],
+  "known_conventions": ["pattern that must always hold in this project"],
+  "recent_misses": [{"what": "gap that was found", "when": "[ISO]", "file": "path"}],
   "known_risks": [...],
   "last_updated": "[ISO]"
 }
 ```
+
+**Add to `known_conventions`** when you observe a pattern that must always hold — e.g. "all slash commands must be listed in uninstall.js commandFiles array."
+
+**Add to `recent_misses`** when you find a gap that matches a pattern that has appeared before — so future runs inspect this area more aggressively.
+
+If you discovered a new artifact group relationship (a file type that has installer/uninstaller lifecycle), add it to `project_map.json` → `artifact_groups`. Read the current project_map.json first, merge, write back.
 
 # Step 8 — Append to timeline.json
 
