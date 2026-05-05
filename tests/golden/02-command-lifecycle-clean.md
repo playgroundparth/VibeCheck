@@ -48,9 +48,23 @@ VibeCheck: ✅ Safe to continue
 🧪 Before shipping: test that the command works end-to-end after a fresh install
 ```
 
+## Global Invariant
+
+- **verdict is present** — ✅ Safe to continue
+- **verdict answers "can I continue?"** — yes
+
 ## What Must NOT Happen
 
-- Must not produce any PITFALL or CRITICAL finding
-- Must not flag uninstall.js as a gap — foo.md is present
-- Must not produce a finding just because it noticed the command is new
-- The `🧪` line must be specific to the command change, not generic ("add tests")
+**Wrong verdict:**
+- ❌ Must not produce any PITFALL or CRITICAL finding — all lifecycle scripts are consistent
+- ❌ Must not produce ⚠️ just because a new file was added
+
+**Generic output:**
+- ❌ "Consider adding tests for the new command" — not applicable to a markdown file
+- ❌ "You may want to verify lifecycle coverage" — VibeCheck verified it; the answer is clean
+- ❌ Findings that weren't derived from reading the evidence files
+- ❌ `🧪` line that says "add tests" — specific to the install/uninstall flow instead
+
+**Wrong scope:**
+- ❌ Must not flag README as missing — nice_check is only reported when must_check is clean, and only if the gap is real
+- ❌ Must not manufacture a finding to seem thorough
