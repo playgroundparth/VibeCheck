@@ -118,6 +118,7 @@ for (const f of commandFiles) {
 const agentFiles = [
   ["agents/scanner.md", "vibecheck-scanner.md"],
   ["agents/scanner-deep.md", "vibecheck-scanner-deep.md"],
+  ["agents/scanner-opus.md", "vibecheck-scanner-opus.md"],
 ];
 const agentsDir = path.join(claudeDir, "agents");
 fs.mkdirSync(agentsDir, { recursive: true });

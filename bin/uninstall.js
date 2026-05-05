@@ -118,7 +118,7 @@ if (fs.existsSync(skillsDir)) {
 }
 
 // 3. Remove agents
-const agentFiles = ["vibecheck-scanner.md", "vibecheck-scanner-deep.md"];
+const agentFiles = ["vibecheck-scanner.md", "vibecheck-scanner-deep.md", "vibecheck-scanner-opus.md"];
 const agentsDir = path.join(claudeDir, "agents");
 for (const f of agentFiles) {
   const p = path.join(agentsDir, f);

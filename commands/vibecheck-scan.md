@@ -17,19 +17,43 @@ print('project:', cwd)
 " 2>&1
 ```
 
-If the check above fails, stop here.
+If the initialization check fails, stop here.
 
-## Choose scanner based on arguments
+## Parse arguments and choose scanner
 
-Parse `$ARGUMENTS`:
+Arguments to parse from: `$ARGUMENTS`
 
-**`--deep`** → invoke SubAgent `vibecheck-scanner-deep` (Sonnet model, reads up to 35 files, up to 20 findings). Use when you want thorough analysis, are scanning a large or security-critical codebase, or the standard scan missed something you expected to catch.
+**Model selection** (pick one; defaults to haiku):
+- `--model haiku` → `vibecheck-scanner` (fast, ~$0.02)
+- `--model sonnet` or `--deep` → `vibecheck-scanner-deep` (thorough, ~$0.20)
+- `--model opus` → `vibecheck-scanner-opus` (exhaustive, ~$1–2)
 
-**`--quick`** or empty → invoke SubAgent `vibecheck-scanner` (Haiku model, reads up to 20 files, up to 15 findings). Fast and cheap (~$0.02). Good for a first scan or after a batch of changes.
+**File budget** (optional; pass as an instruction to the agent):
+- `--files N` → tell the agent: "Read up to N files total (overrides default)."
+- `--full` → tell the agent: "Read all source files you can find in priority order. Use find to list everything, then read in order: entry points, auth, routes, DB, config, tests."
 
-**Anything else** (e.g. `auth`, `src/queue`, `payments`) → invoke SubAgent `vibecheck-scanner` but include the argument as a focus instruction in the SubAgent prompt:
-> "Focus this scan specifically on: [argument]. In Phase 2, prioritize reading files related to that area. You may still read a broader file or two for project context, but spend most of your file budget on the focus area."
+**Focus area** (optional; any non-flag argument):
+- `auth`, `payments`, `src/queue`, etc. → tell the agent: "Focus this scan on: [area]. Spend most of your file budget reading files related to that area."
+
+Build the SubAgent prompt from the above. Example: if user typed `/vibecheck-scan --model sonnet --files 50 auth`, invoke `vibecheck-scanner-deep` with the prompt: "Focus on: auth. Read up to 50 files total (overrides default 35)."
+
+If no model flag: use `vibecheck-scanner` (haiku).
+If no file flag: use the agent's default.
+If no focus: no focus instruction needed.
 
 ## After the scan
 
-Read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity using the same format as `/vibecheck`.
+Read `<project-root>/.vibecheck/findings.json` and show a summary grouped by severity — same format as `/vibecheck`.
+
+## Quick reference
+
+| Command | Model | Files | Use when |
+|---|---|---|---|
+| `/vibecheck-scan` | Haiku | 20 | First scan, quick check, ~$0.02 |
+| `/vibecheck-scan --deep` | Sonnet | 35 | Thorough review, ~$0.20 |
+| `/vibecheck-scan --model opus` | Opus | 50 | Maximum depth, ~$1–2 |
+| `/vibecheck-scan --model sonnet --files 50` | Sonnet | 50 | Deep + wider coverage |
+| `/vibecheck-scan --full` | Haiku | All | Read every source file |
+| `/vibecheck-scan --model opus --full` | Opus | All | Exhaustive, no sampling |
+| `/vibecheck-scan auth` | Haiku | 20 | Focused on auth/session files |
+| `/vibecheck-scan --model sonnet payments` | Sonnet | 35 | Deep focus on payments |

@@ -9,6 +9,10 @@ You are the VibeCheck scanner. You were explicitly invoked by the user for a one
 
 Read strategically. Max signal per token.
 
+## File budget
+
+**Default: up to 20 files.** If the prompt specifies `--files N`, use N as the cap instead. If the prompt specifies `--full`, read every source file you can find in priority order (entry points, auth, routes, DB, config — skip generated/dist/node_modules). Warn if the repo has 50+ source files that full mode may miss some.
+
 ## Phase 1 — Project understanding (always)
 
 ```
