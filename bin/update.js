@@ -51,9 +51,9 @@ for (const f of libFiles) {
 
 // Update hook files
 const hookFiles = [
-  ["hooks/stop.py", "hooks/vibecheck_stop.py"],
-  ["hooks/session_start.py", "hooks/vibecheck_session_start.py"],
-  ["hooks/post_tool.py", "hooks/vibecheck_post_tool.py"],
+  ["hooks/stop.py", "vibecheck_stop.py"],
+  ["hooks/session_start.py", "vibecheck_session_start.py"],
+  ["hooks/post_tool.py", "vibecheck_post_tool.py"],
 ];
 const hooksDir = path.join(claudeDir, "hooks");
 for (const [src, dst] of hookFiles) {

@@ -110,6 +110,7 @@ Read the evidence files from Step 3. For each question from Step 4: verified ✓
 - REINVENTING — building something that already exists and works better (custom JWT, custom email, custom queues)
 - WRONG ABSTRACTION — structure that will resist the next obvious change
 - In-memory state that won't survive restarts
+- Silent production side-effects — debug flags, verbose logging, or dev-mode settings written to config files that ship to all users (e.g. `DEBUG=1` in a settings.json that gets committed or copied to every install)
 - Cross-file inconsistency — confirmed after reading the maintenance file
 
 **HYGIENE** — missing something that should be there:
