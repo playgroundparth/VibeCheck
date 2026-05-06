@@ -154,6 +154,22 @@ if (fs.existsSync(worktreesBase)) {
   if (linked > 0) console.log(`✓ Linked commands into ${linked} existing worktree(s)`);
 }
 
+// Ensure vibecheck-report preview server is in launch.json
+const launchPath = path.join(claudeDir, "launch.json");
+let launch = { version: "0.0.1", configurations: [] };
+if (fs.existsSync(launchPath)) {
+  try { launch = JSON.parse(fs.readFileSync(launchPath, "utf8")); } catch {}
+}
+launch.configurations = (launch.configurations || []).filter(c => c.name !== "vibecheck-report");
+launch.configurations.push({
+  name: "vibecheck-report",
+  runtimeExecutable: "python3",
+  runtimeArgs: ["-m", "http.server", "7337", "--directory", ".vibecheck"],
+  port: 7337,
+});
+fs.writeFileSync(launchPath, JSON.stringify(launch, null, 2));
+updated.push("launch.json (vibecheck-report server)");
+
 console.log(`Updated ${updated.length} files in .claude/`);
 console.log("\nNot touched: .vibecheck/ data, CLAUDE.md, settings.json\n");
 console.log("Restart Claude Code to pick up the changes.");

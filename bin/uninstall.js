@@ -142,7 +142,26 @@ for (const f of commandFiles) {
   }
 }
 
-// 5. Strip VibeCheck sections from CLAUDE.md
+// 5. Remove vibecheck-report from .claude/launch.json
+const launchPath = path.join(claudeDir, "launch.json");
+if (fs.existsSync(launchPath)) {
+  try {
+    const launch = JSON.parse(fs.readFileSync(launchPath, "utf8"));
+    const before = (launch.configurations || []).length;
+    launch.configurations = (launch.configurations || []).filter(c => c.name !== "vibecheck-report");
+    if (launch.configurations.length < before) {
+      if (launch.configurations.length === 0) {
+        fs.rmSync(launchPath);
+        removed.push(".claude/launch.json (removed — was only vibecheck-report)");
+      } else {
+        fs.writeFileSync(launchPath, JSON.stringify(launch, null, 2));
+        removed.push(".claude/launch.json (vibecheck-report entry removed)");
+      }
+    }
+  } catch {}
+}
+
+// 6. Strip VibeCheck sections from CLAUDE.md
 const claudeMdPath = path.join(cwd, "CLAUDE.md");
 if (fs.existsSync(claudeMdPath)) {
   if (stripClaudeMd(claudeMdPath)) {
@@ -152,7 +171,7 @@ if (fs.existsSync(claudeMdPath)) {
   }
 }
 
-// 6. Remove from global registry
+// 7. Remove from global registry
 const registryPath = path.join(os.homedir(), ".vibecheck", "registry.json");
 if (fs.existsSync(registryPath)) {
   try {
@@ -170,7 +189,7 @@ if (fs.existsSync(registryPath)) {
   } catch {}
 }
 
-// 7. Remove .vibecheck/ unless --keep-data
+// 8. Remove .vibecheck/ unless --keep-data
 if (!keepData) {
   if (fs.existsSync(vgDir)) {
     fs.rmSync(vgDir, { recursive: true });

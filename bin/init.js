@@ -213,6 +213,9 @@ async function main() {
   wireHooks(claudeDir);
   console.log("✓ Registered hooks in .claude/settings.json");
 
+  // Wire preview server for HTML report into .claude/launch.json
+  wireLaunchJson(claudeDir);
+
   // Update CLAUDE.md
   addToClaudeMd(cwd, hasClaudeMd);
   console.log("✓ Updated CLAUDE.md");
@@ -707,6 +710,22 @@ function writeIfMissing(filePath, content) {
 function copyFile(src, dest) {
   if (!fs.existsSync(src)) throw new Error(`Missing: ${src}`);
   fs.copyFileSync(src, dest);
+}
+
+function wireLaunchJson(claudeDir) {
+  const launchPath = path.join(claudeDir, "launch.json");
+  let launch = { version: "0.0.1", configurations: [] };
+  if (fs.existsSync(launchPath)) {
+    try { launch = JSON.parse(fs.readFileSync(launchPath, "utf8")); } catch {}
+  }
+  launch.configurations = (launch.configurations || []).filter(c => c.name !== "vibecheck-report");
+  launch.configurations.push({
+    name: "vibecheck-report",
+    runtimeExecutable: "python3",
+    runtimeArgs: ["-m", "http.server", "7337", "--directory", ".vibecheck"],
+    port: 7337,
+  });
+  fs.writeFileSync(launchPath, JSON.stringify(launch, null, 2));
 }
 
 main();

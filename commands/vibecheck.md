@@ -56,4 +56,6 @@ if cwd:
 " 2>/dev/null &
 ```
 
-Do not rewrite, reorder, or add to the output. Display it verbatim.
+Display the output above verbatim — do not rewrite or reorder it.
+
+After displaying the output, use `mcp__Claude_Preview__preview_start` with `name: "vibecheck-report"` to open the full HTML report in the side panel. This shows all findings with complete fix prompts.

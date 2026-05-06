@@ -49,7 +49,9 @@ ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
 PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/lib/vg_display.py" 2>/dev/null
 ```
 
-Do not rewrite, reorder, or summarize the output. Display it verbatim.
+Display the output verbatim — do not rewrite or summarize.
+
+Then use `mcp__Claude_Preview__preview_start` with `name: "vibecheck-report"` to open the full HTML report in the side panel.
 
 ## Quick reference
 
