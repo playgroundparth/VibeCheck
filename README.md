@@ -88,7 +88,7 @@ All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves yo
 
 **Worktree support**: VibeCheck works correctly in git worktrees. All components — hooks, bin scripts, and the scanner — resolve the main repo root via `git rev-parse --git-common-dir` so findings and memory are always shared from the same `.vibecheck/` directory regardless of which worktree you're in.
 
-**Graphify integration**: If your project has a `graphify-out/` directory (from [graphify](https://github.com/playgroundparth/graphify)), the scanner reads the knowledge graph at scan start to extract security-critical call chains, dead exports, architectural hotspots, and test coverage gaps — before running a single grep.
+**Graphify integration**: If your project has a `graphify-out/` directory (produced by running `/graphify` in Claude Code), the scanner reads the knowledge graph at scan start to extract security-critical call chains, dead exports, architectural hotspots, and test coverage gaps — before running a single grep.
 
 ## Verdicts
 
