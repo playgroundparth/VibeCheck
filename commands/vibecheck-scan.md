@@ -24,21 +24,21 @@ If the initialization check fails, stop here.
 Arguments to parse from: `$ARGUMENTS`
 
 **Model selection** (pick one; defaults to haiku):
-- `--model haiku` → `vibecheck-scanner` (fast, ~$0.02)
-- `--model sonnet` or `--deep` → `vibecheck-scanner-deep` (thorough, ~$0.20)
-- `--model opus` → `vibecheck-scanner-opus` (exhaustive, ~$1–2)
+- `--model haiku` → `vibecheck-scanner` (fast, ~$0.05)
+- `--model sonnet` or `--deep` → `vibecheck-scanner-deep` (thorough, ~$0.30)
+- `--model opus` → `vibecheck-scanner-opus` (exhaustive, ~$2–4)
 
-**File budget** (optional; pass as an instruction to the agent):
-- `--files N` → tell the agent: "Read up to N files total (overrides default)."
-- `--full` → tell the agent: "Read all source files you can find in priority order. Use find to list everything, then read in order: entry points, auth, routes, DB, config, tests."
+**Scan mode** (optional):
+- `--full` → tell the agent: "FULL REPO SCAN. Run all grep-first discovery sections (2a–2i plus 2j for each derived check) before reading any files. Read every file the greps return. Do not stop until all sections are complete."
+- `--files N` → tell the agent: "Limit reads to N files total (overrides default)."
 
 **Focus area** (optional; any non-flag argument):
-- `auth`, `payments`, `src/queue`, etc. → tell the agent: "Focus this scan on: [area]. Spend most of your file budget reading files related to that area."
+- `auth`, `payments`, `src/queue`, etc. → tell the agent: "Focus this scan on: [area]. Weight grep sections toward that area — still run all greps but prioritize reading files from that domain."
 
-Build the SubAgent prompt from the above. Example: if user typed `/vibecheck-scan --model sonnet --files 50 auth`, invoke `vibecheck-scanner-deep` with the prompt: "Focus on: auth. Read up to 50 files total (overrides default 35)."
+Build the SubAgent prompt from the above. Example: if user typed `/vibecheck-scan --model sonnet auth`, invoke `vibecheck-scanner-deep` with: "Focus on: auth."
 
 If no model flag: use `vibecheck-scanner` (haiku).
-If no file flag: use the agent's default.
+If no mode flag: use agent defaults (grep-first applies to all modes).
 If no focus: no focus instruction needed.
 
 ## After the scan
@@ -55,13 +55,12 @@ Then use `mcp__Claude_Preview__preview_start` with `name: "vibecheck-report"` to
 
 ## Quick reference
 
-| Command | Model | Files | Use when |
+| Command | Model | Coverage | Use when |
 |---|---|---|---|
-| `/vibecheck-scan` | Haiku | 20 | First scan, quick check, ~$0.02 |
-| `/vibecheck-scan --deep` | Sonnet | 35 | Thorough review, ~$0.20 |
-| `/vibecheck-scan --model opus` | Opus | 50 | Maximum depth, ~$1–2 |
-| `/vibecheck-scan --model sonnet --files 50` | Sonnet | 50 | Deep + wider coverage |
-| `/vibecheck-scan --full` | Haiku | All | Read every source file |
-| `/vibecheck-scan --model opus --full` | Opus | All | Exhaustive, no sampling |
-| `/vibecheck-scan auth` | Haiku | 20 | Focused on auth/session files |
-| `/vibecheck-scan --model sonnet payments` | Sonnet | 35 | Deep focus on payments |
+| `/vibecheck-scan` | Haiku | grep-identified files | First scan, quick check, ~$0.05 |
+| `/vibecheck-scan --deep` | Sonnet | grep-identified files, deeper analysis | Thorough review, ~$0.30 |
+| `/vibecheck-scan --model opus` | Opus | grep-identified files, exhaustive | Maximum depth, ~$2–4 |
+| `/vibecheck-scan --full` | Haiku | all grep sections + derived checks | Full coverage, no sampling |
+| `/vibecheck-scan --deep --full` | Sonnet | all grep sections + derived checks | Deep full coverage |
+| `/vibecheck-scan auth` | Haiku | grep-identified, auth-weighted | Focused on auth/session files |
+| `/vibecheck-scan --deep payments` | Sonnet | grep-identified, payments-weighted | Deep focus on payments |

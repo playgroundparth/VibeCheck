@@ -57,13 +57,16 @@ npx github:playgroundparth/VibeCheck init
 
 That's it. VibeCheck is now active. Restart Claude Code once after running init.
 
-**If you have existing code** (not starting from scratch), also run this after init to scan your history for risks:
+**If you have existing code** (not starting from scratch), also run a one-time scan after init:
 
-```bash
-npx github:playgroundparth/VibeCheck scan
+```
+/vibecheck-scan               # fast (Haiku, ~$0.05) — good for first pass
+/vibecheck-scan --deep        # thorough (Sonnet, ~$0.30) — deeper analysis
+/vibecheck-scan --model opus  # exhaustive (Opus, ~$2–4) — maximum depth
+/vibecheck-scan auth          # focused — weight greps toward an area
 ```
 
-Or type `/vibecheck-scan` inside Claude Code. Going forward, VibeCheck runs automatically after every change — the scan is a one-time catch-up.
+Going forward, VibeCheck runs automatically after every change — the scan is a one-time catch-up.
 
 ## Requirements
 
@@ -82,6 +85,10 @@ It also installs three hooks:
 - **PostToolUse hook** — silently extracts project facts (auth provider, ORM, webhook setup) from files as they're read or written
 
 All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
+
+**Worktree support**: VibeCheck works correctly in git worktrees. All components — hooks, bin scripts, and the scanner — resolve the main repo root via `git rev-parse --git-common-dir` so findings and memory are always shared from the same `.vibecheck/` directory regardless of which worktree you're in.
+
+**Graphify integration**: If your project has a `graphify-out/` directory (from [graphify](https://github.com/playgroundparth/graphify)), the scanner reads the knowledge graph at scan start to extract security-critical call chains, dead exports, architectural hotspots, and test coverage gaps — before running a single grep.
 
 ## Verdicts
 
@@ -102,7 +109,10 @@ The verdict is a holistic judgment, not a mechanical count.
 | `/vibecheck` | Show open findings summary |
 | `/vibecheck vg-001` | Full detail on one finding |
 | `/vibecheck-resolve vg-001` | Mark a finding as resolved |
-| `/vibecheck-scan` | Full scan of existing codebase (one-time catch-up) |
+| `/vibecheck-scan` | Scan codebase (Haiku, grep-first, ~$0.05) |
+| `/vibecheck-scan --deep` | Deeper scan (Sonnet, ~$0.30) |
+| `/vibecheck-scan --model opus` | Exhaustive scan (Opus, ~$2–4) |
+| `/vibecheck-scan auth` | Focused scan — weight greps toward an area |
 | `/vibecheck-review` | Senior-dev review of everything changed since last commit |
 | `/vibecheck-stage mvp\|growth\|prod` | Set project stage to adjust severity thresholds |
 

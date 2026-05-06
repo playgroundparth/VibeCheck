@@ -14,10 +14,33 @@ import crypto from "crypto";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIBEGUARD_ROOT = path.join(__dirname, "..");
 
+/**
+ * Find the main repo root from any directory, including git worktrees.
+ * --git-common-dir always points to the shared .git dir of the main repo.
+ */
+function findRepoRoot(fromDir) {
+  try {
+    const gitCommonDir = execSync("git rev-parse --git-common-dir", {
+      cwd: fromDir, stdio: ["ignore", "pipe", "ignore"],
+    }).toString().trim();
+    const gitCommonPath = path.isAbsolute(gitCommonDir)
+      ? gitCommonDir
+      : path.join(fromDir, gitCommonDir);
+    const repoRoot = path.dirname(path.resolve(gitCommonPath));
+    if (fs.existsSync(repoRoot)) return repoRoot;
+  } catch {}
+  try {
+    return execSync("git rev-parse --show-toplevel", {
+      cwd: fromDir, stdio: ["ignore", "pipe", "ignore"],
+    }).toString().trim();
+  } catch {}
+  return fromDir;
+}
+
 async function main() {
   console.log("\n🛡️  VibeCheck init\n");
 
-  const cwd = process.cwd();
+  const cwd = findRepoRoot(process.cwd());
   const hasClaudeDir = fs.existsSync(path.join(cwd, ".claude"));
   const hasClaudeMd = fs.existsSync(path.join(cwd, "CLAUDE.md"));
 
@@ -122,6 +145,7 @@ async function main() {
     "store.py", "static_checks.py", "patterns.py", "guardrails.py",
     "project.py", "project_map.py", "health_report.py", "ignore.py",
     "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
+    "graphify_query.py",
   ];
   libFiles.forEach((f) => {
     copyFile(

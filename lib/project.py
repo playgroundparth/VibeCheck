@@ -34,23 +34,82 @@ GLOBAL_DIR = Path.home() / ".vibecheck"
 GLOBAL_REGISTRY = GLOBAL_DIR / "registry.json"
 
 
-# ─── Project root resolution (walk up to find .vibecheck/) ───────────────────
+# ─── Repo root resolution ────────────────────────────────────────────────────
+
+def find_repo_root(start: Optional[Path] = None) -> Optional[Path]:
+    """
+    Find the main repository root, working correctly from git worktrees.
+
+    Git worktrees have their own 'show-toplevel' that points to the worktree
+    directory, not the main repo. '--git-common-dir' always points to the
+    shared .git directory of the main repo, so dirname of that is the real root.
+
+    Strategy (in order):
+      1. git rev-parse --git-common-dir  (works from worktrees — shared .git dir)
+      2. git rev-parse --show-toplevel   (fallback for non-worktree repos)
+      3. Walk-up looking for .vibecheck/ (fallback for non-git projects)
+
+    Returns None if no root found.
+    """
+    cwd = (start or Path.cwd()).resolve()
+
+    # Strategy 1: git-common-dir — the only reliable method from worktrees
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            git_common = result.stdout.strip()
+            git_common_path = Path(git_common) if Path(git_common).is_absolute() else cwd / git_common
+            repo_root = git_common_path.resolve().parent
+            # Sanity: must exist and not be inside node_modules or similar
+            if repo_root.exists() and repo_root != Path("/"):
+                return repo_root
+    except Exception:
+        pass
+
+    # Strategy 2: show-toplevel (fails in worktrees but fine for non-worktree)
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except Exception:
+        pass
+
+    return None
+
 
 def find_project_root(start: Path) -> Optional[Path]:
     """
-    Walk up from start path until we find a directory containing .vibecheck/.
-    This means hooks work even if the user cd'd into a subdirectory.
-    Returns the project root path, or None if not found.
+    Find the project root — the directory containing .vibecheck/.
+
+    Works from:
+      - The main repo root
+      - Any subdirectory of the repo
+      - Git worktrees (inside or outside the main repo)
+
+    Strategy:
+      1. find_repo_root() to get the main git repo root — check it for .vibecheck/
+      2. Walk up from start path (catches subdirectory usage)
     """
+    # Fast path: git-based root is almost always correct
+    repo_root = find_repo_root(start)
+    if repo_root and (repo_root / ".vibecheck").is_dir():
+        return repo_root
+
+    # Walk-up fallback: catches subdirectory usage and non-git projects
     current = start.resolve()
-    # Don't walk past home directory or filesystem root
     home = Path.home().resolve()
     fs_root = Path(current.anchor)
 
     while current != fs_root and current != home.parent:
         if (current / ".vibecheck").is_dir():
             return current
-        if current.parent == current:  # safety
+        if current.parent == current:
             break
         current = current.parent
 
