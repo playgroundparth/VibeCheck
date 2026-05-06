@@ -156,6 +156,8 @@ Tag all scan findings with `"source": "scan"` so user knows these are from histo
 Max 15 findings total for a scan (more than live analysis, but still curated).
 Prioritize: CRITICAL first, then PITFALL, then HYGIENE, then GOOD_TO_HAVE.
 
+**One finding per issue** — if a file/function already has a CRITICAL or PITFALL finding, do not also add a HYGIENE or GOOD_TO_HAVE for the same underlying problem. Severity stacking (flagging the same code issue at multiple levels) wastes review time and makes the list noisy. Pick the highest applicable severity and use that one.
+
 Write full updated findings array to `.vibecheck/findings.json`.
 
 ## Update memory.json

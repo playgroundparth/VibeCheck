@@ -162,6 +162,8 @@ Tag all scan findings with `"source": "scan"`.
 Prioritize: CRITICAL first, then PITFALL, then HYGIENE, then GOOD_TO_HAVE.
 Don't pad with obvious good-to-haves to hit the cap. 15 real findings > 20 stretched ones.
 
+**One finding per issue** — if a file already has a CRITICAL or PITFALL finding, do not add a HYGIENE or GOOD_TO_HAVE for the same underlying problem. Pick the highest severity only.
+
 Write full updated findings array to `.vibecheck/findings.json`.
 
 ## Update memory.json

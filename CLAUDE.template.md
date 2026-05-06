@@ -152,7 +152,9 @@ Full anti-pattern catalog (30 patterns with fix prompts) available via `/vibeche
 - Relationship key in `nice_check` (e.g. `documented_in`) → **HYGIENE** or **GOOD_TO_HAVE**
 - No group match → use your judgment
 
-**DROP**: large files, console.log unless leaking secrets, naming style, anything already in existing findings, cross-file gaps you haven't confirmed by reading the other file.
+**DROP**: large files, console.log unless leaking secrets, naming style, cross-file gaps you haven't confirmed by reading the other file.
+
+**No severity stacking** — if a file already has an open CRITICAL or PITFALL finding, do not add a HYGIENE or GOOD_TO_HAVE for the same underlying issue on that file. One finding per issue. If something is already captured at higher severity, skip it.
 
 **Already handled by static checks (never re-flag inline):**
 - OPS-01: env var missing from .env.example — caught by `static_checks.py` via grep

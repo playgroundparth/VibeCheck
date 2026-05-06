@@ -219,14 +219,48 @@ def get_open_findings(cwd: Path) -> list:
     return [f for f in load_findings(cwd) if f.get("status") == "open"]
 
 
+_STOP_WORDS = {"the", "a", "an", "in", "on", "no", "is", "are", "not", "or", "and",
+               "to", "of", "for", "with", "has", "have", "that", "this", "it", "as"}
+
+def _title_words(title: str) -> set:
+    return {w for w in title.lower().split() if w not in _STOP_WORDS and len(w) > 2}
+
+
 def is_already_known(cwd: Path, title: str, file: str) -> bool:
-    """Prevent duplicate findings for same issue in same file."""
+    """Prevent duplicate findings for same issue in same file.
+
+    Catches two kinds of duplication:
+    1. Near-identical title on same file (same wording, different scan run).
+    2. Semantically overlapping title on same file — e.g. HYGIENE re-flagging
+       a problem already captured as CRITICAL or PITFALL.
+    """
     findings = load_findings(cwd)
+    new_words = _title_words(title)
+
     for f in findings:
-        if f.get("status") == "open" and f.get("file") == file:
-            # Simple title similarity check — avoid obvious dupes
-            if title.lower()[:40] == f.get("title", "").lower()[:40]:
+        if f.get("status") != "open":
+            continue
+        existing_file = f.get("file") or ""
+        existing_title = f.get("title", "")
+
+        # Must be the same file (or same file without line number)
+        file_base    = file.rsplit(":", 1)[0] if file else ""
+        existing_base = existing_file.rsplit(":", 1)[0] if existing_file else ""
+        if file_base != existing_base:
+            continue
+
+        # Exact prefix match (original check)
+        if title.lower()[:40] == existing_title.lower()[:40]:
+            return True
+
+        # Significant word-overlap — catches same issue at different severity
+        existing_words = _title_words(existing_title)
+        if new_words and existing_words:
+            overlap = len(new_words & existing_words)
+            union   = len(new_words | existing_words)
+            if union > 0 and overlap / union >= 0.5:
                 return True
+
     return False
 
 

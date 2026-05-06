@@ -169,6 +169,8 @@ Tag all findings `"source": "scan"`.
 **Max 25 findings** — Opus depth justifies more, but don't pad. 18 real findings > 25 stretched ones.
 Prioritize: CRITICAL → PITFALL → HYGIENE → GOOD_TO_HAVE.
 
+**One finding per issue** — if a file already has a CRITICAL or PITFALL finding, do not add a HYGIENE or GOOD_TO_HAVE for the same underlying problem. Pick the highest severity only.
+
 Write full updated findings array to `.vibecheck/findings.json`.
 
 ## Update memory.json
