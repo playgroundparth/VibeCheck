@@ -2,7 +2,7 @@
 
 ## Context Capture — MANDATORY triggers
 
-You MUST append to `.vibecheck/context_log.jsonl` BEFORE responding when ANY of these happen:
+You MUST append to `.vibecheck/timeline.json` BEFORE responding when ANY of these happen:
 
 1. **Error resolved** — you fixed a bug or unblocked something that was failing
 2. **Architecture/design decision** — a non-obvious choice was made (why matters, not just what)
@@ -14,90 +14,95 @@ Do this BEFORE the rest of your response. Not after. Not "I'll note that." Write
 
 Do NOT store: trivial details, build logs, git status, anything already in CLAUDE.md.
 
-### Format — append one line to `.vibecheck/context_log.jsonl`:
+### Format — append one entry to `.vibecheck/timeline.json` events array:
 ```json
 {"ts":"ISO-timestamp","type":"error-resolved|decision|preference|task-completed|progress","summary":"what happened and why it matters","importance":"high|critical"}
 ```
 
-To append: Read the file first (or treat as empty if missing), then Write the full content with the new line added.
+To append: Read `timeline.json` (or treat as `{"events":[]}` if missing), add the entry to `events`, keep last 50 entries, write back.
 
 ---
 
-## VibeCheck (active) — continuous judgment layer
+## VibeCheck (active) — autonomous review planner
 
 After ANY response where you used Write, Edit, or MultiEdit tools, run this at the END of your response. The goal is not "what do I see wrong in this file?" — it is "given everything I know about this project, what must be true for this change to be safe?"
 
+Skip trivial-change short-circuit: if the change is a comment fix, typo, or config value tweak with no structural impact, skip Steps 1–3 and output `✅ Safe to continue` directly.
+
 ---
 
-### Step 1 — Load context
+### Step 1 — Generate review_plan.json
 
 Read these files (treat as `{}` / `[]` if missing):
 
-- `.vibecheck/memory.json` — project identity, known conventions, recent misses
-- `.vibecheck/timeline.json` — last 10 events
-- `.vibecheck/findings.json` — existing findings + next ID
-- `.vibecheck/project_map.json` — artifact groups (lifecycle relationships between files)
-- `.vibecheck/context_log.jsonl` — last 5 notes from prior sessions
+1. `.vibecheck/project_context.json` — what this project IS: platform, auth, stage, integrations
+2. `.vibecheck/learned_rules.md` — project-specific conventions from previous scans
+3. `.vibecheck/project_map.json` — artifact groups, lifecycle relationships
+4. `.vibecheck/findings.json` — existing findings + next ID
+5. `.vibecheck/timeline.json` — recent events in this area
+
+Then **write `.vibecheck/review_plan.json`**:
+
+```json
+{
+  "generated_at": "<ISO timestamp>",
+  "trigger": "live-edit",
+  "changed_files": ["<files changed this turn>"],
+  "change_types": ["<auth-boundary|new-endpoint|schema-change|config|new-file|refactor|...>"],
+  "evidence_files_to_read": [
+    { "path": "<file>", "reason": "<why this file answers a review question>" }
+  ],
+  "threat_checks": [
+    { "check": "<specific yes/no question derived from what this code does>", "severity": "CRITICAL|PITFALL|HYGIENE", "source": "derived" }
+  ],
+  "learned_rule_checks": [
+    { "rule": "<rule name from learned_rules.md>", "check": "<CHECK question>", "applies_to": "<glob>", "severity": "PITFALL" }
+  ],
+  "catalog_checks": ["<only catalog IDs concretely applicable — not a full dump>"],
+  "integration_checks": [
+    { "integration": "<stripe|supabase|openai|...>", "check": "<integration-specific question>" }
+  ],
+  "lifecycle_checks": [
+    { "check": "<lifecycle question>", "files_to_verify": ["<installer>", "<uninstaller>"] }
+  ],
+  "must_verify": ["<2-3 specific things to confirm before finishing>"]
+}
+```
+
+**How to populate each field:**
+
+- `change_types`: classify each changed file — what kind of change is this?
+- `evidence_files_to_read`: max 4 files. For each: the lifecycle files (`installed_by`, `removed_by`) for any artifact group matched by changed files, plus up to 2 additional files that directly answer the review questions. Justify every entry with a `reason`.
+- `threat_checks`: derived from what this code *does* + project context. Not catalog matching — ask "if this runs in prod today and something is wrong, what breaks?" Max 3, must be specific to this change.
+- `learned_rule_checks`: from `learned_rules.md`, include only rules whose `APPLIES_TO` glob matches one of the changed files.
+- `catalog_checks`: 2-4 catalog IDs most relevant to this change type. Not a full catalog dump.
+- `integration_checks`: if `project_context.json.integrations` includes Stripe/Supabase/OpenAI etc. AND the changed file touches that integration's paths — add its key requirements as checks.
+- `lifecycle_checks`: if a changed file matches an artifact group in `project_map`, add "is this wired into init/update/uninstall?" as a check.
+- `must_verify`: the 2-3 things that, if wrong, would ship a real bug. Be specific.
+
+**Installer/uninstaller rule**: if a file is added to an installed, generated, or copied set (commands, hooks, lib files, routes, plugins), `evidence_files_to_read` must include both the installer AND uninstaller path.
+
+**Dead-on-arrival rule**: if a new source file was created this turn (not an entry point, test, or config), add a threat_check: "Does anything import or call this file?" — verify with grep in Step 2.
 
 ---
 
-### Step 2 — Build a review brief (internal reasoning, not written out)
+### Step 2 — Execute the plan
 
-Based on what you read in Step 1 and what files you just changed:
+Read every file in `evidence_files_to_read`. Then work through the plan:
 
-1. **Classify changed files** against `project_map.artifact_groups`:
-   - Does any changed file match a `source_glob` in the artifact groups?
-   - If yes: note the group name and its lifecycle files (`installed_by`, `updated_by`, `removed_by`, `documented_in`, etc.)
+1. **Verify each `threat_check`** against code read — confirmed ✓ or gap found ✗
+2. **Verify each `learned_rule_check`** — does the changed code satisfy the CHECK question?
+3. **Verify each `catalog_check`** — is the pattern present or absent?
+4. **Verify each `integration_check`** — does the code use the integration correctly?
+5. **Verify each `lifecycle_check`** — read the installer/uninstaller and confirm wiring
 
-2. **Check timeline** for recent findings in the same area:
-   - If a similar finding was added recently → inspect the relevant lifecycle files more aggressively
+For dead-on-arrival: grep for imports of any new file. If zero results → gap found ✗.
 
-3. **Check memory**:
-   - `known_conventions` — what patterns has this project established that must hold?
-   - `recent_misses` — what has slipped through before that you should look for again?
-
-4. **Check docs**: does the change match what README or docs promise users?
-
-This brief is your working set for Steps 3–5. It tells you what to read and what questions to answer.
+Only flag cross-file gaps you confirmed by reading the relevant file. Never guess.
 
 ---
 
-### Step 3 — Identify evidence files
-
-Read:
-1. Every file you modified this turn
-2. Every lifecycle file from Step 2 (`installed_by`, `removed_by`, `updated_by`, `documented_in`)
-3. Up to 2 additional maintenance files — files that maintain lists, registries, or cleanup routines for the type of thing you just created/deleted
-4. `.vibecheck/active_frameworks.json` if it exists — lists frameworks detected in the files you just changed. For each framework name listed, read `.claude/hooks/lib/frameworks/<name>.md` and apply its questions during Step 5. These are senior-dev reflexes for patterns that deserve explicit reasoning: retry behavior, rollback story, idempotency, visibility at 2am.
-
-**Installer/uninstaller rule**: if a file is added to an installed, generated, or copied set (commands, hooks, lib files, routes, plugins), read both the installer path AND the uninstaller/cleanup path. This is the check that catches "you added the file but forgot to clean it up on uninstall."
-
-**Dead-on-arrival rule**: if a new source file was created this turn (not an entry point, test, or config), grep for `import <module_name>` or `require('<filename>')` across the project. If zero results: flag DEAD_ON_ARRIVAL. Only flag after running the grep — never guess.
-
-Only flag cross-file gaps if you actually read the maintenance file and confirmed the gap. Never guess.
-
-Max 6 files total. Skip trivial-change short-circuit: if the change is a comment fix, typo, or config value tweak with no structural impact, you may skip Steps 3–5 and output `✅ Safe to continue` directly.
-
----
-
-### Step 4 — Generate review questions
-
-From the brief in Step 2, form specific questions to verify:
-
-- **Lifecycle questions** (from project_map): "Is this new command in init.js copy list? update.js? uninstall.js? README?"
-- **Convention questions** (from memory.known_conventions): "Does this follow the established pattern for X?"
-- **Miss questions** (from memory.recent_misses): "Is this the same gap that was missed last time?"
-- **Doc questions**: "Does this match what the project promises?"
-
----
-
-### Step 5 — Verify each question against evidence
-
-Read the evidence files from Step 3. For each question from Step 4: verified ✓ or gap found ✗.
-
----
-
-### Step 6 — Write findings
+### Step 3 — Write findings
 
 **CRITICAL** — concrete exploit OR code that will definitely crash or corrupt data.
 
@@ -170,7 +175,7 @@ Auto-resolve: for each open finding whose file you read, if issue is gone → se
 
 ---
 
-### Step 7 — Self-heal project_map + update memory
+### Step 4 — Self-heal project_map + update memory
 
 **Upgrade group confidence** when you verify a lifecycle relationship exists in code:
 - Read a lifecycle file (e.g. `bin/init.js`) and saw it copying `commands/*.md` → the `slash_commands` group's `installed_by` relationship is confirmed
@@ -215,7 +220,7 @@ Read file → merge → write back.
 
 ---
 
-### Step 8 — Dev tip + verdict
+### Step 5 — Dev tip + verdict
 
 After the security/correctness check, scan for:
 - No tests for new feature → "No tests here — if this breaks in prod, you'll be debugging blind."

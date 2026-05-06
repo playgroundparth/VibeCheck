@@ -51,6 +51,58 @@ STACK_PATTERNS = [
     (r"resend|nodemailer|sendgrid", "email"),
 ]
 
+# ── Integration detection ────────────────────────────────────────────────────
+# Maps integration name → (detection regex, is_webhook_file regex or None)
+INTEGRATION_DETECTION = {
+    "stripe": (r"from ['\"]stripe|new Stripe\(|stripe\.webhooks\.", r"webhook.*stripe|stripe.*webhook"),
+    "supabase": (r"createClient.*supabase|supabase.*createClient|@supabase/supabase-js", r"webhook.*supabase"),
+    "openai": (r"from ['\"]openai|new OpenAI\(|openai\.chat\.completions|anthropic|from ['\"]@anthropic", None),
+    "clerk": (r"createClerkClient|@clerk/nextjs|@clerk/backend|clerkMiddleware", None),
+    "prisma": (r"from ['\"]@prisma/client|PrismaClient|prisma\.\w+\.\w+", None),
+    "vercel": (r"vercel\.json|from ['\"]@vercel|VERCEL_URL|VERCEL_ENV", None),
+    "resend": (r"from ['\"]resend|new Resend\(", None),
+    "inngest": (r"from ['\"]inngest|createFunction.*inngest|inngest\.createFunction", None),
+}
+
+# Static knowledge per integration — requirements and fix hints for the review planner
+INTEGRATION_KNOWLEDGE = {
+    "stripe": {
+        "known_requirements": ["signature verification via constructEvent", "idempotency on event.id", "server-side amount derivation"],
+        "fix_hints": {
+            "signature": "Use stripe.webhooks.constructEvent(rawBody, sig, secret) — NOT the parsed body",
+            "idempotency": "Check stripe_event_id in DB before processing; return 200 if already seen",
+            "amount": "Always compute charge amount from your price table server-side — never trust req.body.amount"
+        }
+    },
+    "supabase": {
+        "known_requirements": ["use getUser() not getSession() for auth (getSession() is not network-validated)", "service role key must never reach the client"],
+        "fix_hints": {
+            "auth": "Use supabase.auth.getUser() not getSession() — getSession() trusts unvalidated local storage",
+            "service_role": "service role key must only appear in server-side code, never in NEXT_PUBLIC_ env vars"
+        }
+    },
+    "openai": {
+        "known_requirements": ["API key must not appear in client-side code", "set explicit timeout on completions calls", "check finish_reason before using completion"],
+        "fix_hints": {
+            "timeout": "Pass signal: AbortSignal.timeout(30000) to completions.create() — LLM calls can hang indefinitely",
+            "finish_reason": "Check choice.finish_reason === 'stop' before using output — 'length' means truncated"
+        }
+    },
+    "clerk": {
+        "known_requirements": ["auth() or currentUser() called before any data access", "middleware must protect all app routes"],
+        "fix_hints": {
+            "auth": "Call auth() at the top of server components/actions before any DB query",
+            "middleware": "Ensure middleware.ts covers all protected routes — check matcher config"
+        }
+    },
+    "prisma": {
+        "known_requirements": ["use single PrismaClient instance (not new PrismaClient per request)", "always handle Prisma errors — they throw on constraint violations"],
+        "fix_hints": {
+            "singleton": "Export a singleton: const prisma = global.prisma ?? new PrismaClient() — instantiating per-request leaks connections",
+        }
+    },
+}
+
 RISK_PATTERNS = [
     (r"supabaseAnonKey|NEXT_PUBLIC_SUPABASE_ANON_KEY.*service|anonKey.*admin",
      "anon key used where service role expected"),
@@ -117,6 +169,18 @@ def extract(file_path: str, content: str) -> dict:
     if risks:
         facts["risks"] = risks
 
+    # Integration detection
+    integrations_found = {}
+    for name, (sdk_pattern, webhook_pattern) in INTEGRATION_DETECTION.items():
+        if re.search(sdk_pattern, content, re.IGNORECASE):
+            entry = integrations_found.setdefault(name, {"sdk_files": [], "webhook_paths": []})
+            entry["sdk_files"].append(rel)
+        if webhook_pattern and re.search(webhook_pattern, rel, re.IGNORECASE):
+            entry = integrations_found.setdefault(name, {"sdk_files": [], "webhook_paths": []})
+            entry["webhook_paths"].append(rel)
+    if integrations_found:
+        facts["integrations"] = integrations_found
+
     return facts
 
 
@@ -170,6 +234,22 @@ def update_context(vg_dir: Path, file_path: str, content: str) -> None:
             if r["note"] not in existing_notes:
                 ctx.setdefault("risk_patterns", []).append(r)
                 existing_notes.add(r["note"])
+
+    # Merge integrations
+    if "integrations" in facts:
+        ctx_integrations = ctx.setdefault("integrations", {})
+        for name, data in facts["integrations"].items():
+            entry = ctx_integrations.setdefault(name, {
+                "sdk_files": [],
+                "webhook_paths": [],
+                **INTEGRATION_KNOWLEDGE.get(name, {}),
+            })
+            for f in data.get("sdk_files", []):
+                if f not in entry.get("sdk_files", []):
+                    entry.setdefault("sdk_files", []).append(f)
+            for f in data.get("webhook_paths", []):
+                if f not in entry.get("webhook_paths", []):
+                    entry.setdefault("webhook_paths", []).append(f)
 
     ctx["files_scanned"] = ctx.get("files_scanned", 0) + 1
     ctx["updated_at"] = datetime.datetime.utcnow().isoformat() + "Z"

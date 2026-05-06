@@ -37,6 +37,22 @@ Answer these four questions before touching any code files:
 
 Apply the critical bar to *that threat model*. The catalog (AUTH-01, AUTH-02, DATA-04 etc.) is a starting point. Domain-specific criticals that don't match a catalog pattern should still be filed as CRITICAL.
 
+## Phase 1c — Derive project-specific checks (before reading code files)
+
+Based on your threat model and project structure, derive **8 specific questions** this project needs answered. These are NOT catalog patterns — they must be grounded in what THIS system does and what its worst-case exploit is.
+
+Format:
+```
+CHECK: [specific yes/no question]
+REASON: [which threat model element this addresses]
+WHERE: [which file type to look in]
+```
+
+Bad examples (reject these): "Are inputs validated?", "Is auth implemented?" — too generic to be useful.
+Good examples: "Can the LLM's file-path output traverse outside the allowed sandbox?", "Does every scheduled job handle duplicate execution without double-processing?", "Is the charge amount always derived from the server-side price table, not the client payload?"
+
+Verify each derived check against every file read in Phase 2. Tag findings with `"check_source": "derived"`. Derived checks that fire on 2+ files → promote to learned rule in Phase 3b.
+
 ## Phase 2 — File sampling (up to 50 files, or N from --files, or all from --full)
 
 Read up to 6 files per category. Prefer the most security-relevant and most-imported files.
@@ -173,6 +189,25 @@ Prioritize: CRITICAL → PITFALL → HYGIENE → GOOD_TO_HAVE.
 
 Write full updated findings array to `.vibecheck/findings.json`.
 
+## Phase 3b — Write learned_rules.md
+
+Write `.vibecheck/learned_rules.md` with rules observed in THIS project's code. Each rule must cite an actual file you read — no generic rules.
+
+Format:
+```
+RULE: [short name]
+CHECK: [specific yes/no question for files matching APPLIES_TO]
+APPLIES_TO: [file glob]
+SEVERITY: [CRITICAL|PITFALL|HYGIENE]
+EVIDENCE: [exact file that showed this pattern]
+
+---
+```
+
+Promote any Phase 1c derived check that fired on 2+ files as a learned rule.
+If file exists: merge — keep valid rules, add new, remove those whose EVIDENCE file no longer exists.
+Cap: 10 rules.
+
 ## Update memory.json
 
 ```json
@@ -192,6 +227,7 @@ Write full updated findings array to `.vibecheck/findings.json`.
 
 ## Write timeline entry
 
+Read `.vibecheck/timeline.json` (or treat as `{"events":[]}` if missing). Append to `events` array, keep last 50, write back:
 ```json
 {
   "ts": "ISO timestamp",

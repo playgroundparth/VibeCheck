@@ -48,7 +48,7 @@ SECRET_PATTERNS = [
     (r'(?i)password\s*=\s*["\'][^"\']{6,}["\']', "Password hardcoded in source (not from env)"),
 ]
 
-# Patterns that indicate it's probably fine (env var usage)
+# Patterns that indicate it's probably fine (env var usage, sanitization)
 FALSE_POSITIVE_GUARDS = [
     r'process\.env\.',
     r'os\.environ',
@@ -61,7 +61,73 @@ FALSE_POSITIVE_GUARDS = [
     r'example',
     r'placeholder',
     r'REPLACE',
+    # Injection false-positive guards
+    r'sanitize',
+    r'escape',
+    r'validate',
+    r'encodeURIComponent',
+    r'parameterize',
+    r'prepared',
+    r'\.escape\(',
 ]
+
+# ─── Injection / unsafe patterns ─────────────────────────────────────────────
+# High-confidence patterns only. Each entry: (regex, title, why, severity)
+
+INJECTION_PATTERNS = [
+    # SQL injection via string concatenation (JS/TS: "SELECT " + var)
+    (
+        r'(?:["\'`])SELECT\b[^"\'`\n]{0,120}"\s*\+|'
+        r'(?:["\'`])SELECT\b[^"\'`\n]{0,120}\'\s*\+|'
+        r'(?:["\'`])SELECT\b[^"\'`\n]{0,120}`\s*\+|'
+        r'SELECT\b[^"\'\n]{0,80}"\s*\+\s*\w|'
+        r'SELECT\b[^"\'\n]{0,80}\+\s*\w[^;]{0,30}(?:WHERE|FROM)',
+        "SQL injection: query built with string concatenation",
+        "User-controlled data concatenated into SQL string — attacker can exfiltrate or corrupt the database.",
+        "CRITICAL",
+    ),
+    # Shell command injection
+    (
+        r'(?:execSync|exec|spawn)\s*\([^)]{0,60}\+\s*\w|'
+        r'os\.system\s*\([^)]{0,60}\+|'
+        r'subprocess\.(?:call|run|Popen)\s*\([^)]{0,80}\+',
+        "Shell injection: command built with string concatenation",
+        "User-controlled data in exec/execSync — attacker can run arbitrary shell commands on the server.",
+        "CRITICAL",
+    ),
+    # Unsafe deserialization
+    (
+        r'pickle\.loads\s*\(|yaml\.load\s*\([^,)]*\)(?!\s*,\s*Loader)',
+        "Unsafe deserialization: pickle.loads or yaml.load without SafeLoader",
+        "Deserializing untrusted data with pickle or yaml.load allows arbitrary code execution.",
+        "CRITICAL",
+    ),
+    # Open redirect
+    (
+        r'(?:res|response)\.redirect\s*\(\s*req\.(?:query|body|params)\.',
+        "Open redirect: redirect target from user input",
+        "Attacker can craft a link that redirects users to a malicious site (phishing, credential theft).",
+        "PITFALL",
+    ),
+    # Timing-unsafe token comparison
+    (
+        r'(?:token|secret|api_?key|hash|hmac|signature)\s*[!=]==?\s*["\']|'
+        r'["\'][^"\']*\'\s*[!=]==?\s*(?:token|secret|hash)',
+        "Timing-unsafe comparison: use constant-time compare for secrets",
+        "String equality on secrets leaks timing information — use crypto.timingSafeEqual or hmac.compare_digest.",
+        "PITFALL",
+    ),
+    # Prototype pollution
+    (
+        r'Object\.assign\s*\(\s*\{[^}]*\}\s*,\s*req\.\w+\b|'
+        r'\[\s*req\.(?:body|query|params)\.\w+\s*\]',
+        "Prototype pollution: user input used as object key or spread target",
+        "Merging req.body into an object with Object.assign allows attackers to pollute Object.prototype.",
+        "PITFALL",
+    ),
+]
+
+INJECTION_CHECK_EXTENSIONS = {'.js', '.ts', '.jsx', '.tsx', '.py', '.go', '.rb', '.php'}
 
 # File extensions to check for secrets
 SECRET_CHECK_EXTENSIONS = {
@@ -107,6 +173,7 @@ def run_static_checks(cwd: Path, changed_files: List[Path]) -> List[Dict]:
 
         findings.extend(_check_secrets(file_path, content))
         findings.extend(_check_eval_usage(file_path, content))
+        findings.extend(_check_injection_risks(file_path, content))
         findings.extend(_check_console_log_secrets(file_path, content))
         findings.extend(_check_todo_density(file_path, content))
         findings.extend(_check_env_file_committed(file_path))
@@ -191,6 +258,49 @@ def _check_eval_usage(file_path: Path, content: str) -> List[Dict]:
                 "tags": ["security", "injection"],
             })
             break
+
+    return findings
+
+
+def _check_injection_risks(file_path: Path, content: str) -> List[Dict]:
+    """Check for injection vulnerabilities and unsafe patterns via regex."""
+    if file_path.suffix not in INJECTION_CHECK_EXTENSIONS:
+        return []
+
+    # Skip test files — they often have intentionally dangerous patterns for testing
+    name = file_path.name.lower()
+    if any(x in name for x in ('.test.', '.spec.', '_test.', 'test_')):
+        return []
+
+    findings = []
+    lines = content.split("\n")
+
+    for pattern_str, title, why, severity in INJECTION_PATTERNS:
+        compiled = re.compile(pattern_str, re.IGNORECASE | re.MULTILINE)
+        for i, line in enumerate(lines, 1):
+            stripped = line.strip()
+            # Skip comments
+            if stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
+                continue
+            if not compiled.search(line):
+                continue
+            # Check false-positive guards — if any guard matches the same line, skip
+            if any(re.search(guard, line, re.IGNORECASE) for guard in FALSE_POSITIVE_GUARDS):
+                continue
+            fix = (
+                f"There is a potential {title.split(':')[0].strip()} in {file_path.name} at line {i}. "
+                f"Show me that line and I'll rewrite it safely."
+            )
+            findings.append({
+                "severity": severity,
+                "title": f"{title} in {file_path.name}",
+                "file": f"{file_path}:{i}",
+                "why": why,
+                "fix_prompt": fix,
+                "source": "static",
+                "tags": ["security", "injection"],
+            })
+            break  # one finding per pattern per file
 
     return findings
 

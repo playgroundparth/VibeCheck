@@ -53,6 +53,12 @@ def patterns_dir(cwd: Path) -> Path:
 def lock_path(cwd: Path) -> Path:
     return vg_dir(cwd) / "analysis.lock"
 
+def learned_rules_path(cwd: Path) -> Path:
+    return vg_dir(cwd) / "learned_rules.md"
+
+def review_plan_path(cwd: Path) -> Path:
+    return vg_dir(cwd) / "review_plan.json"
+
 
 # ─── Safe JSON read/write with file locking ───────────────────────────────────
 

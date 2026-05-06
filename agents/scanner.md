@@ -40,6 +40,28 @@ Then apply the critical bar to *that threat model*, not a generic web-app checkl
 
 The catalog (AUTH-01, AUTH-02, DATA-04 etc.) lists common web-app patterns. Use it as a starting point. Findings that match the catalog but don't fit this project's threat model can be downgraded. Findings that don't match any catalog entry but are genuinely critical for this project should be filed as CRITICAL.
 
+## Phase 1c — Derive project-specific checks (before reading code files)
+
+Based on your threat model and the project structure already read, derive **5 specific questions** this project needs answered. These are NOT catalog patterns — they are questions grounded in what THIS system does and what its worst-case exploit is.
+
+Format each as:
+```
+CHECK: [specific yes/no question]
+REASON: [which threat model element this addresses]
+WHERE: [which file type to look in]
+```
+
+Good examples (must be project-specific, not generic):
+- Automation runtime: "Can LLM output be used to construct file paths without validation, enabling path traversal?"
+- Multi-tenant SaaS: "Do all DB queries filter by tenant_id, or could User A read User B's data?"
+- LLM wrapper: "Is user-supplied prompt content ever used to build system prompts without sanitization?"
+- Queue consumer: "Can one malformed message cause infinite retries, blocking all subsequent processing?"
+- Payment service: "Is the charge amount taken from the client payload, or always derived server-side from the price table?"
+
+BAD examples (too generic, useless): "Are inputs validated?", "Is auth implemented?", "Are errors handled?"
+
+In Phase 2, verify each derived check against every file read. File findings from derived checks with `"check_source": "derived"` tag.
+
 ## Phase 2 — Strategic file sampling (max 20 files total across all phases)
 
 Identify and read the most important files in each category. Read at most 2-3 files per category.
@@ -160,6 +182,32 @@ Prioritize: CRITICAL first, then PITFALL, then HYGIENE, then GOOD_TO_HAVE.
 
 Write full updated findings array to `.vibecheck/findings.json`.
 
+## Phase 3b — Write learned_rules.md
+
+Based on patterns observed across the files you read, write `.vibecheck/learned_rules.md`.
+
+Each rule must be grounded in an actual file you read — cite it. "Validate all input" is not a rule. A rule looks like: "This project uses requireAuth() middleware — every route in routes/ must call it before any DB operation."
+
+Format:
+```
+RULE: [short name — e.g. "all-routes-require-auth"]
+CHECK: [specific yes/no question to ask when reviewing any file matching APPLIES_TO]
+APPLIES_TO: [file glob — e.g. **/routes/**, **/api/**]
+SEVERITY: [CRITICAL|PITFALL|HYGIENE]
+EVIDENCE: [exact file path that showed this pattern]
+
+---
+```
+
+Rules that make good candidates:
+- A pattern that appears in 3+ files of the same type (e.g. all route handlers call X)
+- A convention the project established that all new code must follow (e.g. "all DB calls go through repository layer")
+- A derived check from Phase 1c that fired on 2+ files — promote it to a learned rule
+
+If `.vibecheck/learned_rules.md` already exists: merge — keep valid rules, add new ones, remove any whose EVIDENCE file path no longer exists.
+
+Cap: 5 rules maximum.
+
 ## Update memory.json
 
 Write a thorough initial project understanding:
@@ -180,7 +228,7 @@ Write a thorough initial project understanding:
 
 ## Write timeline entry
 
-Append to `.vibecheck/timeline.json`:
+Read `.vibecheck/timeline.json` (or treat as `{"events":[]}` if missing). Append to the `events` array, keep last 50:
 ```json
 {
   "ts": "ISO timestamp",
@@ -190,6 +238,7 @@ Append to `.vibecheck/timeline.json`:
   "project_type": "what was found"
 }
 ```
+Write back.
 
 ## Write summary.json
 
