@@ -67,6 +67,11 @@ def main():
     # Build context lines
     context_lines = []
 
+    # Async detection results from last session (Semgrep/Gitleaks background run)
+    async_results_line = _surface_async_results(cwd)
+    if async_results_line:
+        context_lines.append(async_results_line)
+
     # Project context (auth, stack, known risks)
     ctx_summary = context_extractor.summarize(store.vg_dir(cwd))
     if ctx_summary:
@@ -176,6 +181,43 @@ def sync_analyses_from_timeline(cwd):
             store.write_json(store.vg_dir(cwd) / "summary.json", summary)
     except Exception:
         pass
+
+
+def _surface_async_results(cwd: Path) -> str:
+    """
+    Surface Semgrep/Gitleaks findings from the last session's background run.
+    Reads .vibecheck/async_results.json, returns a context line, then deletes the file.
+    Discards results older than 24 hours (stale).
+    """
+    async_results_path = store.vg_dir(cwd) / "async_results.json"
+    if not async_results_path.exists():
+        return ""
+    try:
+        age_seconds = time.time() - async_results_path.stat().st_mtime
+        if age_seconds > 86400:  # 24h — discard stale results
+            async_results_path.unlink(missing_ok=True)
+            return ""
+        data = json.loads(async_results_path.read_text())
+        results = data.get("results", [])
+        async_results_path.unlink(missing_ok=True)  # consume once
+        if not results:
+            return ""
+        n = len(results)
+        # Count by severity
+        criticals = sum(1 for r in results if r.get("suggested_severity") == "CRITICAL")
+        sources = sorted({r.get("source", "semgrep") for r in results})
+        source_str = "+".join(sources)
+        sev_str = f"🔴 {criticals} critical" if criticals else f"{n} issue{'s' if n > 1 else ''}"
+        return (
+            f"[VibeCheck] {sev_str} found by {source_str} background scan (last session). "
+            f"Run /vibecheck to review."
+        )
+    except Exception:
+        try:
+            async_results_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return ""
 
 
 def build_context_log_summary(cwd):

@@ -145,7 +145,7 @@ async function main() {
     "store.py", "static_checks.py", "patterns.py", "guardrails.py",
     "project.py", "project_map.py", "health_report.py", "ignore.py",
     "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
-    "graphify_query.py",
+    "graphify_query.py", "detection_engine.py", "capability.py", "async_detection.py",
   ];
   libFiles.forEach((f) => {
     copyFile(

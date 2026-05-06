@@ -5,14 +5,17 @@ VibeCheck PostToolUse Hook.
 Fires after Read/Write/Edit/MultiEdit tool calls.
 - Extracts security-relevant project facts into .vibecheck/project_context.json.
 - Auto-installs integration skill files when relevant code is detected.
-- Detects active frameworks and writes .vibecheck/active_frameworks.json so Claude
-  loads the right framework question prompts during its inline VibeCheck step.
-Zero LLM calls — pure regex. Must complete in < 100ms.
+- Detects active frameworks and writes .vibecheck/active_frameworks.json.
+- Runs detection_engine (sync, <100ms) to produce structured evidence.
+- Injects evidence into systemMessage so Claude confirms findings, not detects them.
+- Launches async detection subprocess on Enhanced/Pro tiers (non-blocking).
+
+Zero LLM calls in the sync path. Must complete in < 200ms.
 """
-import json, os, re, sys
+import json, os, re, sys, shutil, subprocess
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-import project, store, context_extractor
+import project, store, context_extractor, detection_engine, capability
 
 DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
 
@@ -253,31 +256,66 @@ def main():
             _update_active_frameworks(cwd, matched, rel_path)
             debug_log(cwd, f"Frameworks detected: {matched}")
 
-        # Emit an in-turn reminder so Claude runs the inline VibeCheck check
-        # and emits the footer in THIS response — not the next one.
-        # PostToolUse systemMessage is injected into the current response's context
-        # while Claude is still generating it, unlike the Stop hook which fires after.
+        # ── Run sync detection engine (<100ms) ─────────────────────────────
+        abs_path = Path(file_path) if Path(file_path).is_absolute() else cwd / file_path
+        evidence = detection_engine.run(cwd, [abs_path])
+        debug_log(cwd, f"Detection engine: {len(evidence)} evidence item(s)")
+
+        # Compute next finding ID
         findings = store.load_findings(cwd)
         next_id = max(
             (int(f["id"].split("-")[1]) for f in findings if f.get("id", "").startswith("vg-")),
             default=0
         ) + 1
+
+        # ── Launch async detection if Enhanced/Pro tier ────────────────────
+        tier = capability.detect_tier(cwd)
+        async_lock = store.vg_dir(cwd) / "async.lock"
+        if tier in ("enhanced", "pro") and not async_lock.exists():
+            _launch_async_detection(cwd, [str(abs_path)])
+            debug_log(cwd, f"Launched async detection (tier: {tier})")
+
+        # ── Build systemMessage with evidence ──────────────────────────────
         framework_note = ""
         if matched:
             names = ", ".join(sorted(matched))
             framework_note = (
-                f" Frameworks: {names} — load .claude/hooks/lib/frameworks/<name>.md "
-                f"for each during Step 3."
+                f"\nFrameworks: {names} — load .claude/hooks/lib/frameworks/<name>.md "
+                f"for context during your check."
             )
+
+        evidence_block = detection_engine.format_for_injection(evidence, next_id, tier)
+
         print(json.dumps({
             "systemMessage": (
-                f"[VibeCheck] {rel_path} was just modified. "
-                f"Run the inline check (CLAUDE.md Steps 1-8) and emit the footer before finishing. "
-                f"Next finding ID: vg-{next_id:03d}.{framework_note}"
+                f"[VibeCheck] {rel_path} was just modified.{framework_note}\n\n"
+                f"{evidence_block}\n\n"
+                f"Run the inline check (CLAUDE.md VibeCheck section) and emit the footer before finishing."
             )
         }))
 
     sys.exit(0)
+
+
+def _launch_async_detection(cwd: Path, files: list) -> None:
+    """Launch async_detection.py as a detached background subprocess."""
+    try:
+        lib_dir = Path(__file__).parent / "lib"
+        async_script = lib_dir / "async_detection.py"
+        if not async_script.exists():
+            return
+        subprocess.Popen(
+            [
+                sys.executable, str(async_script),
+                "--cwd", str(cwd),
+                "--files", ",".join(files),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,  # detach from hook process
+        )
+    except Exception:
+        pass  # Non-fatal — async detection is optional
 
 
 if __name__ == "__main__":

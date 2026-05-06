@@ -50,7 +50,10 @@ for (const f of hookFiles) {
 }
 
 // 3. Lib files (spot-check key ones)
-const keyLibFiles = ["store.py", "static_checks.py", "patterns.py", "telemetry.py"];
+const keyLibFiles = [
+  "store.py", "static_checks.py", "patterns.py", "telemetry.py",
+  "detection_engine.py", "capability.py", "async_detection.py",
+];
 const missingLib = keyLibFiles.filter(f => !fs.existsSync(path.join(libDir, f)));
 if (missingLib.length === 0) {
   pass(".claude/hooks/lib/ — all key lib files present");
@@ -120,7 +123,28 @@ try {
   error("python3 not found in PATH", "Install Python 3.8+ and ensure it's in PATH");
 }
 
-// 8. findings.json readable
+// 8. Capability tier (Basic / Enhanced / Pro)
+function shellHas(cmd) {
+  try { execSync(`which ${cmd} 2>/dev/null`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); return true; }
+  catch { return false; }
+}
+const hasSemgrep  = shellHas("semgrep");
+const hasGitleaks = shellHas("gitleaks");
+const hasGraphify = fs.existsSync(path.join(cwd, "graphify-out", "graph.json"));
+const tier = (hasSemgrep && (hasGitleaks || hasGraphify)) ? "pro"
+           : hasSemgrep ? "enhanced"
+           : "basic";
+const tierIcon = tier === "basic" ? "⚠️ " : "✅";
+console.log(`  ${tierIcon} Capability tier: ${tier.toUpperCase()} — ${
+  tier === "basic"    ? "regex only (zero deps)" :
+  tier === "enhanced" ? "regex + Semgrep AST analysis" :
+                        "regex + Semgrep + Gitleaks/Graphify"
+}`);
+if (!hasSemgrep)  console.log("     → Install Semgrep for Enhanced tier: pip install semgrep");
+if (hasSemgrep && !hasGitleaks && !hasGraphify)
+  console.log("     → Install Gitleaks for Pro tier: brew install gitleaks");
+
+// 9. findings.json readable
 const findingsPath = path.join(vgDir, "findings.json");
 if (fs.existsSync(findingsPath)) {
   try {

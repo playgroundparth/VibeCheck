@@ -23,82 +23,37 @@ To append: Read `timeline.json` (or treat as `{"events":[]}` if missing), add th
 
 ---
 
-## VibeCheck (active) — autonomous review planner
+## VibeCheck (active) — evidence-driven inline check
 
-After ANY response where you used Write, Edit, or MultiEdit tools, run this at the END of your response. The goal is not "what do I see wrong in this file?" — it is "given everything I know about this project, what must be true for this change to be safe?"
+After ANY response where you used Write, Edit, or MultiEdit tools, run this at the END of your response.
 
-Skip trivial-change short-circuit: if the change is a comment fix, typo, or config value tweak with no structural impact, skip Steps 1–3 and output `✅ Safe to continue` directly.
-
----
-
-### Step 1 — Generate review_plan.json
-
-Read these files (treat as `{}` / `[]` if missing):
-
-1. `.vibecheck/project_context.json` — what this project IS: platform, auth, stage, integrations
-2. `.vibecheck/learned_rules.md` — project-specific conventions from previous scans
-3. `.vibecheck/project_map.json` — artifact groups, lifecycle relationships
-4. `.vibecheck/findings.json` — existing findings + next ID
-5. `.vibecheck/timeline.json` — recent events in this area
-
-Then **write `.vibecheck/review_plan.json`**:
-
-```json
-{
-  "generated_at": "<ISO timestamp>",
-  "trigger": "live-edit",
-  "changed_files": ["<files changed this turn>"],
-  "change_types": ["<auth-boundary|new-endpoint|schema-change|config|new-file|refactor|...>"],
-  "evidence_files_to_read": [
-    { "path": "<file>", "reason": "<why this file answers a review question>" }
-  ],
-  "threat_checks": [
-    { "check": "<specific yes/no question derived from what this code does>", "severity": "CRITICAL|PITFALL|HYGIENE", "source": "derived" }
-  ],
-  "learned_rule_checks": [
-    { "rule": "<rule name from learned_rules.md>", "check": "<CHECK question>", "applies_to": "<glob>", "severity": "PITFALL" }
-  ],
-  "catalog_checks": ["<only catalog IDs concretely applicable — not a full dump>"],
-  "integration_checks": [
-    { "integration": "<stripe|supabase|openai|...>", "check": "<integration-specific question>" }
-  ],
-  "lifecycle_checks": [
-    { "check": "<lifecycle question>", "files_to_verify": ["<installer>", "<uninstaller>"] }
-  ],
-  "must_verify": ["<2-3 specific things to confirm before finishing>"]
-}
-```
-
-**How to populate each field:**
-
-- `change_types`: classify each changed file — what kind of change is this?
-- `evidence_files_to_read`: max 4 files. For each: the lifecycle files (`installed_by`, `removed_by`) for any artifact group matched by changed files, plus up to 2 additional files that directly answer the review questions. Justify every entry with a `reason`.
-- `threat_checks`: derived from what this code *does* + project context. Not catalog matching — ask "if this runs in prod today and something is wrong, what breaks?" Max 3, must be specific to this change.
-- `learned_rule_checks`: from `learned_rules.md`, include only rules whose `APPLIES_TO` glob matches one of the changed files.
-- `catalog_checks`: 2-4 catalog IDs most relevant to this change type. Not a full catalog dump.
-- `integration_checks`: if `project_context.json.integrations` includes Stripe/Supabase/OpenAI etc. AND the changed file touches that integration's paths — add its key requirements as checks.
-- `lifecycle_checks`: if a changed file matches an artifact group in `project_map`, add "is this wired into init/update/uninstall?" as a check.
-- `must_verify`: the 2-3 things that, if wrong, would ship a real bug. Be specific.
-
-**Installer/uninstaller rule**: if a file is added to an installed, generated, or copied set (commands, hooks, lib files, routes, plugins), `evidence_files_to_read` must include both the installer AND uninstaller path.
-
-**Dead-on-arrival rule**: if a new source file was created this turn (not an entry point, test, or config), add a threat_check: "Does anything import or call this file?" — verify with grep in Step 2.
+**Short-circuit**: if the `[VibeCheck Detection]` block says "No issues detected" AND the change is a comment fix, typo, or config value tweak with no structural impact → output `✅ Safe to continue` and stop.
 
 ---
 
-### Step 2 — Execute the plan
+### Step 1 — Read the detection evidence
 
-Read every file in `evidence_files_to_read`. Then work through the plan:
+The PostToolUse hook already ran detection against the changed file(s). Look for a `[VibeCheck Detection]` block in the system context injected before this response.
 
-1. **Verify each `threat_check`** against code read — confirmed ✓ or gap found ✗
-2. **Verify each `learned_rule_check`** — does the changed code satisfy the CHECK question?
-3. **Verify each `catalog_check`** — is the pattern present or absent?
-4. **Verify each `integration_check`** — does the code use the integration correctly?
-5. **Verify each `lifecycle_check`** — read the installer/uninstaller and confirm wiring
+- If the block is present: work through each `EVIDENCE-NNN` item below
+- If no block (hook may have missed a rapid edit): do a brief self-check using the security rules below — treat it as if you had a single LOW-confidence item for each changed file
 
-For dead-on-arrival: grep for imports of any new file. If zero results → gap found ✗.
+**Your role is confirmation, not detection.** The hook detected patterns. You confirm whether they're real by reading the actual code. Never invent evidence that wasn't in the detection block.
 
-Only flag cross-file gaps you confirmed by reading the relevant file. Never guess.
+---
+
+### Step 2 — Confirm each evidence item
+
+For each `EVIDENCE-NNN` item in the detection block:
+
+1. **Read the cited `file:line`** (you have the exact path and line number)
+2. Apply the confidence rule:
+   - **`confidence:high`** — write the finding unless you see a clear mitigation in the code you read
+   - **`confidence:medium`** — confirm the issue is real before writing; if clear mitigation is present, skip
+   - **`confidence:low`** — only write the finding if the code you read clearly demonstrates the problem
+3. **Never write a finding for evidence you can't confirm by reading actual code**
+
+For lifecycle/cross-file issues (new file added, installer change, etc.): grep or read the relevant lifecycle file to confirm before writing.
 
 ---
 
@@ -169,13 +124,15 @@ Finding format (append to `.vibecheck/findings.json`):
 ```json
 {"id":"vg-NNN","severity":"CRITICAL|PITFALL|HYGIENE|GOOD_TO_HAVE","title":"under 100 chars","file":"relative/path:line","why":"concrete consequence, under 200 chars","fix_prompt":"paste-ready fix","status":"open","source":"live","detected_at":"ISO timestamp"}
 ```
-Max 3 new findings. Zero is valid. Never include secret values.
-
-Auto-resolve: for each open finding whose file you read, if issue is gone → set `status:"resolved"`, add `resolved_at`, `resolution_note:"auto-resolved"`.
+Max 3 new findings. Zero is valid. Never include secret values in `why` or `fix_prompt`.
 
 ---
 
-### Step 4 — Self-heal project_map + update memory
+### Step 4 — Auto-resolve + self-heal project_map
+
+**Auto-resolve**: for each open finding (from `.vibecheck/findings.json`) whose file you read this turn, if the issue is gone → set `status:"resolved"`, add `resolved_at`, `resolution_note:"auto-resolved"`.
+
+**Self-heal project_map** (optional, only when lifecycle files are involved):
 
 **Upgrade group confidence** when you verify a lifecycle relationship exists in code:
 - Read a lifecycle file (e.g. `bin/init.js`) and saw it copying `commands/*.md` → the `slash_commands` group's `installed_by` relationship is confirmed
