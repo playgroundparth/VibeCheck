@@ -95,6 +95,24 @@ Use these IDs when naming findings. Check every category that's touched by the d
 - OPS-05 `nice-to-have` — no health check endpoint on a server application
 - OPS-06 `nice-to-have` — AI API call on Vercel with no `maxDuration` export
 
+**TEST**
+- TEST-01 `will-bite-you` — test files exist but no mutation testing is configured
+
+  **Why this matters for AI-generated code**: Claude writes both the implementation and the tests. AI-generated tests routinely pass while verifying nothing — `expect(result).toBeDefined()`, happy-path-only assertions, no error cases. A green test suite means Claude didn't throw an error. It does not mean the logic is correct. Mutation testing catches this by modifying your code in small ways and checking whether your tests fail — if they don't, the tests weren't testing anything real.
+
+  **Trigger**: test files found (`.test.ts`, `_test.py`, `spec/`, etc.) AND none of the following exist:
+  - `.stryker.conf.js` / `.stryker.conf.mjs` / `.stryker.conf.json` / `stryker.config.*` (JS/TS)
+  - `mutmut.toml` / `.mutmut-cache` (Python)
+  - `pitest` in `pom.xml` or `build.gradle` (Java)
+  - `cargo-mutants` in `Cargo.toml` (Rust)
+
+  **Fix prompt** (paste-ready, language-specific):
+  - JS/TS: `"Run: npx stryker init — this will detect your test framework and generate a config. Then run npx stryker run to get your mutation score. Any mutant that survived means a real bug your tests would miss."`
+  - Python: `"Run: pip install mutmut && mutmut run — then mutmut results to see which mutations your tests missed. A high survived-mutant count means your tests aren't catching real logic errors."`
+  - Java: `"Add the pitest Maven plugin to pom.xml and run mvn test-compile org.pitest:pitest-maven:mutationCoverage. Aim for >80% mutation coverage on business logic."`
+
+  **Severity note**: not stage-gated. At `mvp` stage this is still `will-bite-you` — shipping AI-generated code with untested tests is how production bugs slip through on day one, not after scaling.
+
 **Stage-aware judgment** — check `project_stage` in memory.json and apply:
 - `mvp`: ARCH-05 → `will-bite-you`. Ask: "Is this complexity solving a problem you have now, or one you're anticipating?" If anticipated, fix is deletion, not simplification.
 - `prod`: DATA-01, DATA-08 → `showstopper` (it's breaking now under real traffic, not "will break"). OPS-06 → `will-bite-you`.

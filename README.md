@@ -150,8 +150,11 @@ Two check surfaces with different scope:
 | **Data** (DATA 01–08) | In-memory counters, missing migrations, unguarded awaits, payment idempotency, N+1 queries, read-then-write races, derived data, serverless pooling |
 | **Architecture** (ARCH 01–08) | Single-use service wrappers, premature caching, custom email/queue, wrong-layer logic, dead exports, signature drift |
 | **Operations** (OPS 01–06) | Undocumented env vars, debug flags in prod config, missing retries, missing ErrorBoundary, no health check, AI route timeout on Vercel |
+| **Testing** (TEST-01) | Mutation testing not configured — tests exist but aren't verified to catch real bugs |
 
 Two OPS patterns (undocumented env vars, dead exports) run automatically on every change via the hook — they don't wait for `/vibecheck-review`.
+
+**TEST-01 is `will-bite-you`, not `nice-to-have`**: Claude writes both the implementation and the tests. AI-generated tests routinely assert that code runs without error, not that it produces correct results. Mutation testing (Stryker for JS/TS, mutmut for Python, Pitest for Java) is the only reliable way to verify your tests would catch a real bug — VibeCheck surfaces it when tests exist but no mutation config is found.
 
 **Never reported**: code style, naming, console.log (unless leaking a secret), large files, anything already in existing open findings.
 
