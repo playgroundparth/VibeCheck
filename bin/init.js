@@ -314,6 +314,9 @@ Commands:
 
 Model: Claude Haiku · ~$0.001-0.002 per analysis
 .vibecheck/ is in .gitignore. Findings stay local.
+
+Next: commit CLAUDE.md so future branches inherit the VibeCheck block:
+  git add CLAUDE.md && git commit -m "Add VibeCheck to CLAUDE.md"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);
 
@@ -645,15 +648,9 @@ function addToClaudeMd(cwd, exists) {
     fs.writeFileSync(claudeMdPath, `# Project\n${block}`);
   }
 
-  // Commit CLAUDE.md so git worktrees (used by Claude Code's Code tab) inherit it
-  try {
-    execSync(`git add "${claudeMdPath}"`, { cwd, stdio: ["pipe", "pipe", "ignore"] });
-    execSync(`git commit -m "Add VibeCheck security rules to CLAUDE.md"`, {
-      cwd, stdio: ["pipe", "pipe", "ignore"],
-    });
-  } catch {
-    // Not a git repo, or nothing to commit — silently continue
-  }
+  // Note: CLAUDE.md is NOT auto-committed. Commit it yourself so future branches
+  // (and their worktrees) inherit the VibeCheck block:
+  //   git add CLAUDE.md && git commit -m "Add VibeCheck to CLAUDE.md"
 
   // Patch any existing worktrees — Claude Code's Code tab opens each branch in its own
   // worktree at .claude/worktrees/<name>/, which has its own CLAUDE.md checked out from
@@ -681,8 +678,6 @@ function addToClaudeMd(cwd, exists) {
       fs.appendFileSync(wtClaudeMd, vcBlock);
       // Commit to the worktree's branch so it survives future checkouts
       try {
-        execSync(`git add CLAUDE.md && git commit -m "Add VibeCheck inline rules to worktree CLAUDE.md"`,
-          { cwd: path.join(worktreesBase, wt), shell: true, stdio: ["pipe", "pipe", "ignore"] });
       } catch {}
       patched++;
     }
