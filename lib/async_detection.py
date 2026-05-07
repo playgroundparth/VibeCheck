@@ -148,6 +148,186 @@ def run_gitleaks(cwd: Path, files: list) -> list:
         return []
 
 
+# ── Mutation testing ──────────────────────────────────────────────────────────
+# Only runs when mutation testing IS already configured — does not bootstrap it.
+# TEST-01 inline evidence handles the "not configured" case.
+# Results are surfaced as structured evidence so session_start.py can show score.
+
+MAX_MUTATION_SECONDS = 300  # 5 minutes — mutation testing is slow by design
+
+_MUTATION_SCORE_RESULT_KEY = "mutation_score"
+
+
+def _detect_mutation_config(cwd: Path) -> tuple:
+    """
+    Returns (tool_name, command) if mutation testing is configured, else (None, None).
+    Priority: Stryker > mutmut > pitest > cargo-mutants
+    """
+    # Stryker (JS/TS)
+    stryker_configs = [
+        ".stryker.conf.js", ".stryker.conf.mjs", ".stryker.conf.cjs",
+        ".stryker.conf.json", "stryker.config.js", "stryker.config.mjs",
+    ]
+    if any((cwd / c).exists() for c in stryker_configs):
+        return ("stryker", ["npx", "stryker", "run"])
+
+    # mutmut (Python)
+    if (cwd / "mutmut.toml").exists():
+        return ("mutmut", ["mutmut", "run"])
+    setup_cfg = cwd / "setup.cfg"
+    if setup_cfg.exists():
+        try:
+            if "[mutmut]" in setup_cfg.read_text(encoding="utf-8", errors="ignore"):
+                return ("mutmut", ["mutmut", "run"])
+        except Exception:
+            pass
+
+    # pitest (Java via Maven)
+    pom = cwd / "pom.xml"
+    if pom.exists():
+        try:
+            if "pitest" in pom.read_text(encoding="utf-8", errors="ignore"):
+                return ("pitest", ["mvn", "test-compile", "org.pitest:pitest-maven:mutationCoverage"])
+        except Exception:
+            pass
+
+    # cargo-mutants (Rust)
+    cargo = cwd / "Cargo.toml"
+    if cargo.exists():
+        try:
+            if "cargo-mutants" in cargo.read_text(encoding="utf-8", errors="ignore"):
+                return ("cargo-mutants", ["cargo", "mutants"])
+        except Exception:
+            pass
+
+    return (None, None)
+
+
+def _parse_mutation_score(tool: str, stdout: str, stderr: str) -> dict:
+    """
+    Extract mutation score from tool output. Returns dict with score info.
+    Best-effort — if parsing fails, returns raw summary.
+    """
+    combined = stdout + "\n" + stderr
+
+    if tool == "stryker":
+        # Stryker: "Mutation score: 72.22%"
+        m = re.search(r"Mutation score[:\s]+(\d+(?:\.\d+)?)\s*%", combined, re.IGNORECASE)
+        killed = re.search(r"Killed\s+(\d+)", combined)
+        survived = re.search(r"Survived\s+(\d+)", combined)
+        total = re.search(r"Total detected\s+(\d+)|(\d+)\s+mutant", combined)
+        return {
+            "score_pct": float(m.group(1)) if m else None,
+            "killed": int(killed.group(1)) if killed else None,
+            "survived": int(survived.group(1)) if survived else None,
+        }
+
+    elif tool == "mutmut":
+        # mutmut: "🎉 All 42 mutants are killed."  or  "X out of Y mutants survived"
+        survived = re.search(r"(\d+)\s+out\s+of\s+(\d+)\s+mutants?\s+survived", combined)
+        all_killed = re.search(r"All\s+(\d+)\s+mutants?\s+(?:are\s+)?killed", combined)
+        if survived:
+            s, t = int(survived.group(1)), int(survived.group(2))
+            score = round((t - s) / t * 100, 1) if t else None
+            return {"score_pct": score, "killed": t - s, "survived": s}
+        elif all_killed:
+            t = int(all_killed.group(1))
+            return {"score_pct": 100.0, "killed": t, "survived": 0}
+        return {"score_pct": None, "killed": None, "survived": None}
+
+    return {"score_pct": None, "killed": None, "survived": None}
+
+
+def run_mutation_testing(cwd: Path, files: list) -> list:
+    """
+    Run mutation testing if configured. Returns evidence items with source='mutation'.
+    Only runs when test files are in the changed set — no point running if only
+    source files changed without their tests.
+    """
+    # Only run if any changed file is a test file
+    test_exts = {".ts", ".tsx", ".js", ".jsx", ".py"}
+    test_file_patterns = re.compile(
+        r"\.test\.(ts|tsx|js|jsx)|\.spec\.(ts|tsx|js|jsx)|"
+        r"(^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$",
+        re.IGNORECASE,
+    )
+    has_test_file = any(
+        test_file_patterns.search(f) or
+        (Path(f).suffix in test_exts and "test" in Path(f).name.lower())
+        for f in files
+    )
+    if not has_test_file:
+        return []
+
+    tool, cmd = _detect_mutation_config(cwd)
+    if not tool or not cmd:
+        return []  # Not configured — TEST-01 inline evidence handles this
+
+    try:
+        result = subprocess.run(
+            cmd, cwd=cwd,
+            capture_output=True, text=True,
+            timeout=MAX_MUTATION_SECONDS,
+        )
+        score_data = _parse_mutation_score(tool, result.stdout, result.stderr)
+        score_pct = score_data.get("score_pct")
+        survived = score_data.get("survived")
+        killed = score_data.get("killed")
+
+        # Build a human-readable summary for the session_start injection
+        if score_pct is not None:
+            if score_pct >= 80:
+                verdict = f"✅ {score_pct}% mutation score — tests are catching real bugs"
+                severity = "HYGIENE"
+            elif score_pct >= 50:
+                verdict = f"⚠️  {score_pct}% mutation score — {survived} mutants survived your test suite"
+                severity = "PITFALL"
+            else:
+                verdict = f"❌ {score_pct}% mutation score — {survived} mutants survived, tests are not verifying correctness"
+                severity = "CRITICAL"
+        else:
+            verdict = f"{tool} ran — check output for mutation score"
+            severity = "HYGIENE"
+
+        return [{
+            "pattern_id": "TEST-01",
+            "source": "mutation",
+            "confidence": "high",
+            "confidence_reason": f"{tool} mutation score: {score_pct}%" if score_pct is not None else f"{tool} ran",
+            "file": str(files[0]) if files else "",
+            "line": 0,
+            "matched_text": verdict,
+            "suggested_severity": severity,
+            "check_question": (
+                f"{tool} mutation score: {score_pct}%. "
+                + (f"{survived} mutants survived — these are logic paths your tests don't cover. "
+                   f"Run `{' '.join(cmd)}` then check which mutants survived to find untested behavior."
+                   if survived and survived > 0 else
+                   "All mutants killed — your tests are verifying real behavior.")
+            ),
+            # Extra fields for session_start rendering
+            "mutation_score_pct": score_pct,
+            "mutation_survived": survived,
+            "mutation_killed": killed,
+            "mutation_tool": tool,
+        }]
+
+    except subprocess.TimeoutExpired:
+        return [{
+            "pattern_id": "TEST-01",
+            "source": "mutation",
+            "confidence": "low",
+            "confidence_reason": f"{tool} timed out after {MAX_MUTATION_SECONDS}s",
+            "file": "",
+            "line": 0,
+            "matched_text": f"{tool} mutation run timed out",
+            "suggested_severity": "HYGIENE",
+            "check_question": f"{tool} timed out. Your test suite may be too slow for mutation testing — consider running on a subset.",
+        }]
+    except Exception:
+        return []
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -173,15 +353,19 @@ def main():
 
     try:
         results = []
+        import shutil
 
         # Run Semgrep if available
-        import shutil
         if shutil.which("semgrep"):
             results.extend(run_semgrep(cwd, files))
 
         # Run Gitleaks if available
         if shutil.which("gitleaks"):
             results.extend(run_gitleaks(cwd, files))
+
+        # Run mutation testing if configured (only when test files changed)
+        # This runs regardless of capability tier — it's config-gated, not tool-availability-gated
+        results.extend(run_mutation_testing(cwd, files))
 
         if results:
             out_path = vg_dir / "async_results.json"

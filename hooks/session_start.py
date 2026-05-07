@@ -202,16 +202,45 @@ def _surface_async_results(cwd: Path) -> str:
         async_results_path.unlink(missing_ok=True)  # consume once
         if not results:
             return ""
-        n = len(results)
-        # Count by severity
-        criticals = sum(1 for r in results if r.get("suggested_severity") == "CRITICAL")
-        sources = sorted({r.get("source", "semgrep") for r in results})
-        source_str = "+".join(sources)
-        sev_str = f"🔴 {criticals} critical" if criticals else f"{n} issue{'s' if n > 1 else ''}"
-        return (
-            f"[VibeCheck] {sev_str} found by {source_str} background scan (last session). "
-            f"Run /vibecheck to review."
-        )
+
+        lines = []
+
+        # Surface mutation score separately — it's a verdict, not just another finding
+        mutation_results = [r for r in results if r.get("source") == "mutation"]
+        other_results = [r for r in results if r.get("source") != "mutation"]
+
+        for mr in mutation_results:
+            score_pct = mr.get("mutation_score_pct")
+            survived = mr.get("mutation_survived")
+            tool = mr.get("mutation_tool", "mutation testing")
+            if score_pct is not None:
+                if score_pct >= 80:
+                    icon = "✅"
+                elif score_pct >= 50:
+                    icon = "⚠️ "
+                else:
+                    icon = "❌"
+                score_line = f"[VibeCheck] {icon} {tool} mutation score: {score_pct}%"
+                if survived and survived > 0:
+                    score_line += f" — {survived} mutant{'s' if survived != 1 else ''} survived (run `{tool} results` to see which)"
+                else:
+                    score_line += " — all mutants killed, tests are verifying real behavior"
+                lines.append(score_line)
+            else:
+                lines.append(f"[VibeCheck] {tool} ran after your test changes — check results")
+
+        if other_results:
+            n = len(other_results)
+            criticals = sum(1 for r in other_results if r.get("suggested_severity") == "CRITICAL")
+            sources = sorted({r.get("source", "semgrep") for r in other_results})
+            source_str = "+".join(sources)
+            sev_str = f"🔴 {criticals} critical" if criticals else f"{n} issue{'s' if n > 1 else ''}"
+            lines.append(
+                f"[VibeCheck] {sev_str} found by {source_str} background scan (last session). "
+                f"Run /vibecheck to review."
+            )
+
+        return "\n".join(lines)
     except Exception:
         try:
             async_results_path.unlink(missing_ok=True)

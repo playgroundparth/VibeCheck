@@ -144,6 +144,123 @@ OPEN_REDIRECT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# ── Mutation testing config detection ─────────────────────────────────────────
+# Presence of any of these means mutation testing is already configured.
+
+MUTATION_CONFIG_GLOBS = [
+    # JS/TS — Stryker
+    ".stryker.conf.js", ".stryker.conf.mjs", ".stryker.conf.cjs",
+    ".stryker.conf.json", "stryker.config.js", "stryker.config.mjs",
+    # Python — mutmut
+    "mutmut.toml", "setup.cfg",   # setup.cfg may have [mutmut] section
+    # Rust — cargo-mutants
+    # (no config file; presence of cargo-mutants in Cargo.toml checked separately)
+]
+
+# Test file name patterns — these are files we want to flag for mutation testing
+TEST_FILE_PATTERNS = re.compile(
+    r"\.test\.(ts|tsx|js|jsx)|\.spec\.(ts|tsx|js|jsx)|"
+    r"(^|/)test_[^/]+\.py$|(^|/)conftest\.py$|[^/]+_test\.py$|"
+    r"(^|/)__(tests|test)__/",
+    re.IGNORECASE,
+)
+
+TEST_SOURCE_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".py"}
+
+
+def _has_mutation_config(cwd: Path) -> bool:
+    """Return True if any mutation testing config file exists in the project root."""
+    for name in MUTATION_CONFIG_GLOBS:
+        if (cwd / name).exists():
+            return True
+    # Check Cargo.toml for cargo-mutants
+    cargo = cwd / "Cargo.toml"
+    if cargo.exists():
+        try:
+            if "cargo-mutants" in cargo.read_text(encoding="utf-8", errors="ignore"):
+                return True
+        except Exception:
+            pass
+    # Check pom.xml/build.gradle for pitest
+    for build_file in ["pom.xml", "build.gradle", "build.gradle.kts"]:
+        bf = cwd / build_file
+        if bf.exists():
+            try:
+                if "pitest" in bf.read_text(encoding="utf-8", errors="ignore"):
+                    return True
+            except Exception:
+                pass
+    # Check setup.cfg for [mutmut] section
+    setup_cfg = cwd / "setup.cfg"
+    if setup_cfg.exists():
+        try:
+            if "[mutmut]" in setup_cfg.read_text(encoding="utf-8", errors="ignore"):
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _is_test_file(file_path: Path) -> bool:
+    """Return True if this file looks like a test file."""
+    if file_path.suffix not in TEST_SOURCE_EXTENSIONS:
+        return False
+    name = file_path.name.lower()
+    path_str = str(file_path).replace("\\", "/")
+    return bool(TEST_FILE_PATTERNS.search(path_str) or
+                TEST_FILE_PATTERNS.search(name))
+
+
+def _detect_test_no_mutation(file_path: Path, rel: str, cwd: Path) -> List[Dict]:
+    """
+    MEDIUM confidence: test file written but no mutation testing configured.
+
+    AI writes both the implementation and the tests. AI-generated tests routinely
+    pass while testing nothing — happy path only, assertions that confirm code ran
+    rather than that it was correct. Mutation testing is the only reliable way to
+    verify tests would catch a real bug.
+
+    Only fires once per run (caller deduplicates by checking cwd already flagged).
+    """
+    if not _is_test_file(file_path):
+        return []
+    if _has_mutation_config(cwd):
+        return []
+
+    # Detect language to give the right setup command
+    suffix = file_path.suffix.lower()
+    if suffix in {".ts", ".tsx", ".js", ".jsx"}:
+        lang = "js"
+        setup_cmd = "npx stryker init"
+        run_cmd = "npx stryker run"
+        tool = "Stryker"
+    elif suffix == ".py":
+        lang = "python"
+        setup_cmd = "pip install mutmut && mutmut run"
+        run_cmd = "mutmut run"
+        tool = "mutmut"
+    else:
+        return []
+
+    return [_make_evidence(
+        pattern_id="TEST-01",
+        confidence="high",
+        confidence_reason=(
+            f"test file written ({file_path.name}) but no {tool} config found in project"
+        ),
+        file_rel=rel,
+        line=1,
+        matched_text=file_path.name,
+        suggested_severity="PITFALL",
+        check_question=(
+            f"Mutation testing is not configured. AI-generated tests routinely pass while "
+            f"verifying nothing. Run `{setup_cmd}` to set up {tool}, then `{run_cmd}` to find "
+            f"which of your tests would miss a real bug. Write the finding and include the setup "
+            f"command in the fix_prompt."
+        ),
+    )]
+
+
 # ── Env var patterns ───────────────────────────────────────────────────────────
 
 ENV_VAR_PATTERNS = [
@@ -484,6 +601,23 @@ def run(cwd: Path, changed_files: List[Path]) -> List[Dict]:
 
     # Cross-file check: env vars undocumented
     all_evidence.extend(_detect_env_undocumented(cwd, changed_files))
+
+    # Cross-file check: test file written but no mutation testing configured
+    # (deduplicated — fire at most once per run regardless of how many test files changed)
+    _mutation_flagged = False
+    for file_path in changed_files:
+        if _mutation_flagged:
+            break
+        if not file_path.exists():
+            continue
+        try:
+            rel = _rel(file_path, cwd)
+            ev = _detect_test_no_mutation(file_path, rel, cwd)
+            if ev:
+                all_evidence.extend(ev)
+                _mutation_flagged = True
+        except Exception:
+            pass
 
     # Sort: high confidence first, then medium, then low
     confidence_order = {"high": 0, "medium": 1, "low": 2}
