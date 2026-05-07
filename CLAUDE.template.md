@@ -241,10 +241,18 @@ Max 2 tips. Skip if not applicable.
 ```
 ---
 VibeCheck: [verdict]  [· 🔴 N critical · ⚡ N pitfalls · 🧹 N hygiene — omit zero categories]
-🧪 Before shipping: [specific thing to verify — name the exact flow, command, or edge case]
+🧪 Before shipping: [specific thing to verify]
 💡 [dev tip — one sentence, consequence-first — skip if nothing applies]
 ```
 
-The `🧪` line must be specific. Not "add tests" — name what to test: "run `/vibecheck uninstall` and verify no command files remain" or "send a webhook with a forged signature and verify it's rejected."
+**Writing the `🧪` line** — describe what to try, not what to run. The reader is a vibecoder, not a terminal user. Name the user action and the expected result. Avoid raw CLI commands unless they're simple and obvious (`npm test`, `npx vibecheck doctor`).
+
+Good: "Try uninstalling and confirm no VibeCheck files are left behind"
+Good: "Send a request without an auth token — it should get a 401, not your data"
+Good: "Create a new project with `init` and check that the CLAUDE.md looks right"
+Bad: `printf '{"jsonrpc":"2.0","id":1}' | node --import tsx/esm src/mcp/index.ts`
+Bad: `node --import tsx/esm --test src/tests/core.test.ts && npx stryker run`
+
+If the only honest verification is a CLI command a developer would understand, write it — but explain what a passing result looks like in plain English after it.
 
 Commands: `/vibecheck` · `/vibecheck <id>` · `/vibecheck-resolve <id>` · `/vibecheck-scan` · `/vibecheck-review` · `/vibecheck-stage`
