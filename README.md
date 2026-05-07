@@ -2,7 +2,9 @@
 
 Build with AI — without second-guessing every decision.
 
-VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no separate API calls. The analysis adds tokens to each response with file changes, which counts against your existing Claude Code usage.
+VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no separate API calls.
+
+**Token cost**: the PostToolUse hook runs a sync regex pass (<200ms, zero tokens), then injects a structured evidence block into Claude's context. Claude confirms findings from that evidence rather than re-reading the file from scratch. Typical overhead is **500–2,000 tokens per response with file changes** (~$0.0003–$0.001 at Haiku rates, ~$0.001–$0.006 at Sonnet rates). Clean responses where nothing is flagged cost closer to 300 tokens. This counts against your existing Claude Code usage.
 
 ## What it looks like
 
@@ -76,13 +78,13 @@ Going forward, VibeCheck runs automatically after every change — the scan is a
 
 ## How it works
 
-VibeCheck adds a section to your `CLAUDE.md` that tells Claude to run a judgment pass at the end of every response where files were changed. Claude reads the files it just modified — and up to 2 related "maintenance files" (cleanup scripts, install lists, caller files) — then gives you a verdict, a specific test to run, and any findings worth tracking.
+The PostToolUse hook runs after every file write. It executes a sync regex pass against the changed file (<200ms, zero tokens), produces a structured evidence block with confidence tiers, and injects that into Claude's context. Claude's job is to confirm each evidence item by reading the cited code — not to detect patterns from scratch. This separation means detection is deterministic (hook-owned) and judgment is LLM-quality (Claude-owned).
 
-It also installs three hooks:
+Three hooks are installed:
 
-- **Stop hook** — logs task completion, runs fast static checks (hardcoded secrets, auth bypass patterns), sends a fallback reminder if Claude missed the inline check
-- **SessionStart hook** — injects open findings count and recent context into every new session so nothing is forgotten
-- **PostToolUse hook** — silently extracts project facts (auth provider, ORM, webhook setup) from files as they're read or written
+- **PostToolUse hook** — runs sync detection on every file write, injects structured evidence into Claude's context, extracts project facts (auth provider, ORM, webhook setup), launches optional background Semgrep scan on Enhanced/Pro tiers
+- **Stop hook** — runs the same static checks as a backstop in case a response ends without a VibeCheck footer (long responses, interrupted tasks). Also logs task completion. In practice the inline check fires reliably because detection happens before Claude generates its response, not after — Claude is reacting to the hook's evidence, not following a CLAUDE.md instruction from memory.
+- **SessionStart hook** — injects open findings count and recent context into every new session so nothing is forgotten. Also surfaces any Semgrep/Gitleaks findings from the previous session's background scan.
 
 All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
 
@@ -119,37 +121,39 @@ The verdict is a holistic judgment, not a mechanical count.
 
 ## What VibeCheck catches
 
-The inline check (runs after every change) covers the most common critical and pitfall patterns. `/vibecheck-review` applies the full 30-pattern catalog after larger changes.
+Two check surfaces with different scope:
 
-**Critical** — flags only when there's a concrete exploit or definite breakage:
-- AUTH-01: Route reads/writes user data with no auth check before the first DB call
-- AUTH-02: Webhook endpoint (Stripe, GitHub, etc.) without signature verification
-- AUTH-03: Service-role or admin key used in a route that doesn't require admin auth
-- DATA-02: Schema changed with no migration file
-- DATA-04: Payment event processed without idempotency check (Stripe retries = double charge)
-- Secret or credential hardcoded in source
-- ARCH-08: Exported function signature changed, callers not updated
+**Inline check** — runs after every file change, via hook + Claude confirmation. Covers patterns where a regex can confirm both the risk and the absence of mitigation in the changed file:
 
-**Pitfall** — architectural traps, not immediately exploitable:
-- DEAD_ON_ARRIVAL: new file confirmed by grep to have no callers
-- AUTH-04: Auth check happens after data is fetched
-- AUTH-06: Custom JWT when the project's auth library handles it
-- ARCH-01: Service/factory/interface wrapping a single DB call
-- ARCH-03/04: Custom email or job queue instead of Resend/Inngest
-- DATA-01: In-memory rate limiter or counter (resets on restart)
-- DATA-06: Read-then-write without a transaction (race condition)
-- DATA-08: No DB connection pooling in serverless deployment
-- Cross-file inconsistency (added to a collection but forgot to update cleanup/install lists)
+| Pattern | Severity | Detection method |
+|---------|---------|-----------------|
+| Secret / credential hardcoded in source | Critical | Regex, hook-confirmed |
+| SQL query built with string concatenation | Critical | Regex, hook-confirmed |
+| Shell command built with string concatenation | Critical | Regex, hook-confirmed |
+| Unsafe deserialization (`pickle.loads`, `yaml.load`) | Critical | Regex, hook-confirmed |
+| Open redirect: `res.redirect(req.query.*)` | Critical | Regex, hook-confirmed |
+| Webhook endpoint with no signature verification | Critical | File-scope check, Claude-confirmed |
+| Env var used in code but absent from `.env.example` | Critical | Cross-file check, hook-confirmed |
+| `.env` file committed | Critical | Filename check |
+| `.env` not in `.gitignore` | Critical | File check |
+| New source file with no callers | Pitfall | Reverse-dep map |
+| Schema changed, no migration file | Critical | Claude-confirmed |
+| AUTH-01: route touches user data, no auth check | Critical | Claude-confirmed |
+| AUTH-08: exported function signature changed, callers not updated | Critical | Claude-confirmed |
+| Cross-file inconsistency (added to collection, cleanup not updated) | Pitfall | Claude-confirmed |
 
-**Hygiene**:
-- Non-trivial feature with no test file
-- `await` without try/catch in payment, auth, or DB paths (DATA-03)
+**`/vibecheck-review`** — on-demand, runs after larger changes or before shipping. Applies the full 30-pattern catalog to everything changed since the last commit:
 
-**Good to have** — minor only:
-- Missing rate limiting on public endpoints
-- Missing input validation on user-facing forms
+| Category | Patterns |
+|---------|---------|
+| **Auth** (AUTH 01–08) | Route auth, webhook sig, service-role exposure, auth ordering, localStorage tokens, custom JWT, CORS wildcard, sensitive field leakage |
+| **Data** (DATA 01–08) | In-memory counters, missing migrations, unguarded awaits, payment idempotency, N+1 queries, read-then-write races, derived data, serverless pooling |
+| **Architecture** (ARCH 01–08) | Single-use service wrappers, premature caching, custom email/queue, wrong-layer logic, dead exports, signature drift |
+| **Operations** (OPS 01–06) | Undocumented env vars, debug flags in prod config, missing retries, missing ErrorBoundary, no health check, AI route timeout on Vercel |
 
-**Never reported**: code style, naming, console.log, large files, anything already in existing findings.
+Two OPS patterns (undocumented env vars, dead exports) run automatically on every change via the hook — they don't wait for `/vibecheck-review`.
+
+**Never reported**: code style, naming, console.log (unless leaking a secret), large files, anything already in existing open findings.
 
 ## Integration skills
 
