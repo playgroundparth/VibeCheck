@@ -658,11 +658,13 @@ function addToClaudeMd(cwd, exists) {
   // be there. Append it directly so Claude sees the rules immediately without a merge.
   const worktreesBase = path.join(cwd, ".claude", "worktrees");
   if (fs.existsSync(worktreesBase)) {
-    // Extract the VibeCheck section from the template (everything from ## VibeCheck onward)
+    // Extract everything from the Engineering Standards section onward (includes VibeCheck)
     const templatePath = path.join(VIBEGUARD_ROOT, "CLAUDE.template.md");
     if (!fs.existsSync(templatePath)) return;
     const templateLines = fs.readFileSync(templatePath, "utf8").split("\n");
-    const vcStart = templateLines.findIndex((l) => l.startsWith("## VibeCheck (active)"));
+    // Prefer starting at Engineering Standards (if present), fall back to VibeCheck section
+    let vcStart = templateLines.findIndex((l) => l.startsWith("## Engineering standards"));
+    if (vcStart === -1) vcStart = templateLines.findIndex((l) => l.startsWith("## VibeCheck (active)"));
     if (vcStart === -1) return;
     const vcBlock = "\n---\n" + templateLines.slice(vcStart).join("\n");
 

@@ -23,6 +23,48 @@ To append: Read `timeline.json` (or treat as `{"events":[]}` if missing), add th
 
 ---
 
+## Engineering standards — apply to every response
+
+These are not suggestions. A senior dev would catch every one of these in code review. Apply them before shipping any change.
+
+**Tests must verify correctness, not just execution.**
+`expect(result).toBeDefined()` is not a test — it confirms the code didn't throw, nothing more. Every test must assert specific output values. Every test must include at least one case where wrong input produces wrong output. Never mock the system under test. Disjunctive assertions (`assert.ok(a || b)`) are a smell — split them into separate tests so failures are actionable. If you can't write a meaningful assertion, say so — don't write a test that gives false confidence.
+
+**Don't catch exceptions to make tests pass.**
+If a test fails, fix the code. Don't wrap the failing call in try/catch to silence it. Don't add defensive null checks that hide a real bug. Don't widen a type from `User` to `User | null` because the call site sometimes returns null when it shouldn't. Hiding the failure doesn't resolve it — it just makes it harder to find later.
+
+**Don't expand scope mid-task.**
+When asked to fix bug X, fix bug X. Don't refactor adjacent code, rename variables for "clarity," reformat files, or add features that "make sense while we're here." Each unrelated change makes the diff harder to review and the fix harder to revert. If you notice something else worth doing, say so explicitly — don't do it without asking.
+
+**Remove dead code. Don't comment it out.**
+Unused imports, commented-out blocks, functions with no callers — delete them. Git is the backup. Commented-out code is a lie: it implies it might come back, which it won't, and it makes the real code harder to read. If something is genuinely experimental, say so in a comment explaining *why* it's there and what condition would bring it back.
+
+**Separate "changed" from "verified" in your summary.**
+When summarizing work, distinguish the two explicitly: "Changed: added retry logic to the fetch handler. Verified: ran integration test, confirmed retries fire on 503." Don't list items as verified if you only inspected them visually. Don't mark something done if you only changed it.
+
+**Say what to run to confirm the fix works.**
+Don't claim something is fixed without a verification step. The verification must be runnable locally, must fail when the bug is present, and must pass when the fix is applied. After every non-trivial change: name the command, request, or flow. If it requires a specific condition (a user role, a queue event, a race condition), say how to reproduce it. "Deploy and test in prod" is not a verification plan.
+
+**Name every caller when you change a function signature, then update them all.**
+If you rename a function, change its parameters, or alter its return shape — grep for every caller and update them in the same response. Don't leave the codebase half-migrated, with some callers on the old API and some on the new. For typed languages: a clean type-check is the floor, not proof — run the actual code path.
+
+**Never claim something is faster or more efficient without measuring it.**
+"This is more performant" with no benchmark is a guess dressed as a fact. Don't add caching, pre-computation, or memoization unless you have a profile showing where the time is going. The inverse applies too: don't assume something is slow without measuring — premature pessimization is just as wrong. If you're choosing an approach for performance reasons, state the assumption and how to validate it.
+
+**Document non-obvious choices at the point of decision.**
+When you pick X over Y for a reason that isn't obvious from the code, write a comment explaining why. Decisions discussed in chat are not durable — if a tradeoff was resolved, write it in the code or repo. When you discover a constraint or limitation that will affect future work, document it where future-you will find it. Silence gets re-litigated.
+
+**Check existing code before adding something new.**
+Before writing a new utility, check `lib/`, `utils/`, `helpers/` — it may already exist. Before recommending a library, check `package.json`, `requirements.txt`, `pyproject.toml`, or `Cargo.toml`. Internal duplication is as harmful as an unnecessary dependency: two `formatDate()` implementations means two places where bugs live.
+
+**Match the codebase's style before writing new code.**
+Before writing anything, look at how nearby code handles the same kind of thing — imports, error handling, naming, file organization. If the codebase uses `snake_case` for functions, don't introduce `camelCase`. If it uses `Result<T>` for fallible operations, don't throw exceptions. If it uses a particular pattern for async calls, match it. Style drift compounds across sessions: code that's locally clean but globally inconsistent creates a cleanup pass that shouldn't have been necessary.
+
+**Read generated files before treating them as done.**
+When a tool generates output — a database migration, an OpenAPI spec, a Prisma schema diff, a snapshot file — open it and read it before committing. Don't trust that the generator produced what you intended. Generated migrations regularly drop indexes, rename columns, or include unintended schema changes from partially-resolved conflicts. "The command completed successfully" means the tool ran, not that the output is correct.
+
+---
+
 ## VibeCheck (active) — evidence-driven inline check
 
 After ANY response where you used Write, Edit, or MultiEdit tools, run this at the END of your response.

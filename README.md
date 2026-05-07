@@ -43,13 +43,14 @@ Type `/vibecheck`:
     vibecheck-model.md to the commandFiles array on line 105."
 ```
 
-## The five questions VibeCheck answers
+## The questions VibeCheck answers
 
 1. **Am I doing this right?** — catches wrong abstractions, reinvented wheels, approaches that will fight you later
 2. **Am I overengineering this?** — flags complexity that exceeds what your current stage needs
 3. **Is this safe for production?** — catches auth gaps, SQL injection, hardcoded secrets, missing webhook verification
 4. **Am I missing something obvious?** — cross-file consistency, missing migrations, callers not updated
 5. **What should I fix before I ship?** — specific `🧪 Before shipping:` line every time, not generic advice
+6. **Is the AI coding the way a senior dev would?** — 12 standing engineering rules injected into every project: no false tests, no scope creep, no unsubstantiated performance claims, no half-migrations, no generated files accepted without reading them
 
 ## Setup
 
@@ -77,6 +78,8 @@ Going forward, VibeCheck runs automatically after every change — the scan is a
 - Python 3.8+
 
 ## How it works
+
+Init writes 12 engineering standards into your project's `CLAUDE.md` — standing rules that apply to every response Claude generates, not just the post-write check. These cover the failure modes that senior devs catch in code review but vibecoders miss: false tests that confirm execution without verifying correctness, scope creep that makes diffs unreviewable, generated migration files accepted without reading them, and unsubstantiated performance claims. The rules are imperative and non-negotiable — not suggestions Claude weighs, but constraints it applies before shipping any change.
 
 The PostToolUse hook runs after every file write. It executes a sync regex pass against the changed file (<200ms, zero tokens), produces a structured evidence block with confidence tiers, and injects that into Claude's context. Claude's job is to confirm each evidence item by reading the cited code — not to detect patterns from scratch. This separation means detection is deterministic (hook-owned) and judgment is LLM-quality (Claude-owned).
 
