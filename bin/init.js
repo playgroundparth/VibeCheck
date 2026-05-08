@@ -204,13 +204,15 @@ async function main() {
   const commandsDir = path.join(claudeDir, "commands");
   fs.mkdirSync(commandsDir, { recursive: true });
   const commandFiles = [
-    "vibecheck.md", "vibecheck-resolve.md", "vibecheck-scan.md",
-    "vibecheck-review.md", "vibecheck-stage.md",
+    "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
+    "vibecheck-scan.md", "vibecheck-review.md", "vibecheck-stage.md",
+    "vibecheck-status.md", "vibecheck-report.md", "vibecheck-timeline.md",
+    "vibecheck-skills.md", "vibecheck-promote-skill.md", "vibecheck-model.md",
   ];
   for (const f of commandFiles) {
     copyFile(path.join(VIBEGUARD_ROOT, "commands", f), path.join(commandsDir, f));
   }
-  console.log("✓ Installed commands → .claude/commands/ (/vibecheck, /vibecheck-resolve, /vibecheck-scan, /vibecheck-review, /vibecheck-stage)");
+  console.log("✓ Installed 12 commands → .claude/commands/");
 
   // Symlink commands into any existing worktrees so Claude Code's Code tab can see them
   wireCommandsIntoWorktrees(claudeDir);
@@ -297,25 +299,28 @@ async function main() {
 
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ VibeCheck active in: ${projectName}
-   Project ID: ${projectId}
+✅ VibeCheck installed in: ${projectName}
    ${integrations.length > 0 ? `Integrations: ${integrations.join(", ")}` : "No external tools detected"}
 
-After each task Claude finishes, you'll see:
-  [VibeCheck] 🔴 1 critical · 💡 3 suggestions · /vibecheck to review
+⚠️  Restart Claude Code now (quit fully and reopen).
+   Commands and hooks won't appear until after a restart.
+   On Mac: Cmd+Q, then reopen. On Windows: close from taskbar.
 
-Commands:
+After restarting, type /vibecheck in the chat to confirm it's working.
+
+Commands (type / to browse):
   /vibecheck                   View all findings with fix prompts
-  /vibecheck [id]              Full detail on one finding (e.g. /vibecheck vg-001)
+  /vibecheck [id]              Full detail on one finding
   /vibecheck-resolve [id]      Mark a finding fixed
   /vibecheck-scan              Full repo scan (existing codebases)
   /vibecheck-review            On-demand code review of current diff
   /vibecheck-stage [stage]     Set project stage (mvp|growth|prod)
+  /vibecheck-model [model]     Switch analyzer model (haiku/sonnet)
 
-Model: Claude Haiku · ~$0.001-0.002 per analysis
+After each task Claude finishes, you'll see a VibeCheck footer automatically.
 .vibecheck/ is in .gitignore. Findings stay local.
 
-Next: commit CLAUDE.md so future branches inherit the VibeCheck block:
+Next: commit CLAUDE.md so future branches inherit the VibeCheck rules:
   git add CLAUDE.md && git commit -m "Add VibeCheck to CLAUDE.md"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);

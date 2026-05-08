@@ -64,9 +64,9 @@ if (missingLib.length === 0) {
 // 4. Command files
 const allCommands = [
   "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-  "vibecheck-scan.md", "vibecheck-status.md", "vibecheck-report.md",
-  "vibecheck-timeline.md", "vibecheck-skills.md", "vibecheck-promote-skill.md",
-  "vibecheck-model.md",
+  "vibecheck-scan.md", "vibecheck-review.md", "vibecheck-stage.md",
+  "vibecheck-status.md", "vibecheck-report.md", "vibecheck-timeline.md",
+  "vibecheck-skills.md", "vibecheck-promote-skill.md", "vibecheck-model.md",
 ];
 const missingCmds = allCommands.filter(f => !fs.existsSync(path.join(commandsDir, f)));
 if (missingCmds.length === 0) {
