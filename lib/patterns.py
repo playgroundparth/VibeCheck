@@ -156,9 +156,7 @@ def evaluate_triggers(cwd: Path, changed_files: List[Path]) -> List[Dict]:
     for pattern in patterns:
         if pattern.get("status") != "active":
             continue
-        # Candidates don't fire yet — they wait to be promoted
-        if pattern.get("confidence") == "candidate":
-            continue
+        # Candidates are allowed to fire to accumulate match counts and get promoted
 
         trigger = pattern["trigger"]
         file_glob = trigger["file_glob"]

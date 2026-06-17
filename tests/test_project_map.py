@@ -271,6 +271,45 @@ with tempfile.TemporaryDirectory() as tmpdir:
         check("Dead file is dead.ts", dead_findings[0]["file"] == "dead.ts")
 
 
+
+
+# ── Suite 7: Ecosystem checks ──────────────────────────────────────────────────
+
+print("\n── Ecosystem checks ──")
+
+# 1. Test Zod default/optional ordering
+zod_bad = "const schema = z.string().default('x').optional();"
+zod_good = "const schema = z.string().optional().default('x');"
+zod_findings_bad = static_checks._check_ecosystem_pitfalls(Path("schema.ts"), zod_bad)
+zod_findings_good = static_checks._check_ecosystem_pitfalls(Path("schema.ts"), zod_good)
+check("Zod ordering bug detected on bad schema", len(zod_findings_bad) == 1)
+check("Zod ordering bug NOT detected on good schema", len(zod_findings_good) == 0)
+
+# 2. Test SQLite missing busy_timeout
+db_bad = "const db = new Database('file.db');"
+db_good = "const db = new Database('file.db'); db.pragma('busy_timeout = 5000');"
+db_findings_bad = static_checks._check_ecosystem_pitfalls(Path("db.ts"), db_bad)
+db_findings_good = static_checks._check_ecosystem_pitfalls(Path("db.ts"), db_good)
+check("SQLite missing busy_timeout detected", len(db_findings_bad) == 1)
+check("SQLite busy_timeout present is clean", len(db_findings_good) == 0)
+
+# 3. Test Playwright CDP close leak
+pw_bad = "const browser = await connectOverCDP(opts);"
+pw_good = "const browser = await connectOverCDP(opts); await browser.close();"
+pw_findings_bad = static_checks._check_ecosystem_pitfalls(Path("pw.ts"), pw_bad)
+pw_findings_good = static_checks._check_ecosystem_pitfalls(Path("pw.ts"), pw_good)
+check("Playwright CDP connection leak detected", len(pw_findings_bad) == 1)
+check("Playwright CDP connection close/disconnect is clean", len(pw_findings_good) == 0)
+
+# 4. Test Express server close keep-alive hang
+srv_bad = "server.close();"
+srv_good = "server.closeAllConnections(); server.close();"
+srv_findings_bad = static_checks._check_ecosystem_pitfalls(Path("server.ts"), srv_bad)
+srv_findings_good = static_checks._check_ecosystem_pitfalls(Path("server.ts"), srv_good)
+check("Express server close keep-alive hang detected", len(srv_findings_bad) == 1)
+check("Express server close keep-alive handled is clean", len(srv_findings_good) == 0)
+
+
 # ── Results ──────────────────────────────────────────────────────────────────
 
 print(f"\n{'='*50}")

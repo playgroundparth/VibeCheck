@@ -103,6 +103,25 @@ FRAMEWORK_DETECTORS = {
     ),
 }
 
+ECOSYSTEM_CHECKS = {
+    "playwright": (
+        re.compile(r"\bplaywright\b|connectOverCDP|launchBrowser"),
+        "- [Playwright] Ensure all browser instances, contexts, and CDP connections are closed/disconnected in a finally block to prevent file descriptor leaks.\n- [Playwright] Do not use one-shot innerText() reads right after visibility checks if content loads asynchronously; poll until it is populated."
+    ),
+    "better-sqlite3": (
+        re.compile(r"\bbetter-sqlite3\b|sqlite3|new\s+Database"),
+        "- [SQLite] Verify you configured a `busy_timeout` (e.g. 5000ms) on the database object to prevent lock contention crashes.\n- [SQLite] Ensure write transactions use IMMEDIATE mode instead of DEFERRED (which deadlocks on upgrading from read-lock to write-lock under concurrency)."
+    ),
+    "zod": (
+        re.compile(r"\bzod\b|import\s+.*\s+from\s+['\"]zod['\"]"),
+        "- [Zod] Check for ordering bugs: `.default(...).optional()` ignores default values on explicit undefined at runtime; use `.optional().default(...)` instead.\n- [Zod] Ensure string variables that are resolved as placeholders in templates have a `.min(1)` requirement so empty strings are rejected."
+    ),
+    "express": (
+        re.compile(r"\bexpress\b|require\(['\"]express['\"]\)"),
+        "- [Express/HTTP] Ensure server.close() is accompanied by server.closeAllConnections() to prevent keep-alive connections from hanging the shutdown process indefinitely."
+    )
+}
+
 ACTIVE_FRAMEWORKS_FILE = "active_frameworks.json"
 
 
@@ -319,11 +338,20 @@ def main():
                 f"for context during your check."
             )
 
+        checklist_items = []
+        for name, (pat, note) in ECOSYSTEM_CHECKS.items():
+            if pat.search(content) or pat.search(rel_path):
+                checklist_items.append(note)
+
+        checklist_note = ""
+        if checklist_items:
+            checklist_note = "\n\n⚠️  Ecosystem stack detected in changed lines:\n" + "\n".join(checklist_items)
+
         evidence_block = detection_engine.format_for_injection(evidence, next_id, tier)
 
         print(json.dumps({
             "systemMessage": (
-                f"[VibeCheck] {rel_path} was just modified.{framework_note}\n\n"
+                f"[VibeCheck] {rel_path} was just modified.{framework_note}{checklist_note}\n\n"
                 f"{evidence_block}\n\n"
                 f"Run the inline check (CLAUDE.md VibeCheck section) and emit the footer before finishing."
             )

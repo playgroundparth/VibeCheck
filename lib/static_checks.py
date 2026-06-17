@@ -256,6 +256,66 @@ SKIP_EXTENSIONS = {
 MAX_FILE_SIZE_BYTES = 500_000  # 500KB — skip analysis of huge files
 
 
+
+def _check_ecosystem_pitfalls(file_path: Path, content: str) -> List[Dict]:
+    findings = []
+    ext = file_path.suffix.lower()
+    if ext not in {".js", ".ts", ".jsx", ".tsx"}:
+        return []
+
+    # 1. Zod ordering bug: .default(...).optional()
+    zod_order_re = re.compile(r"\.default\([^)]*\)\.optional\(\)")
+    for line_num, line in enumerate(content.splitlines(), 1):
+        if zod_order_re.search(line):
+            findings.append({
+                "severity": "PITFALL",
+                "title": f"Zod ordering bug in {file_path.name}:{line_num}",
+                "file": str(file_path),
+                "why": "z.default().optional() ignores default values on explicit undefined at runtime. Use .optional().default() instead.",
+                "fix_prompt": "Swap the order: use .optional().default(...) instead of .default(...).optional().",
+                "source": "static",
+                "tags": ["bug", "zod", "schema"],
+            })
+
+    # 2. SQLite missing busy_timeout
+    if "new Database" in content and "busy_timeout" not in content:
+        findings.append({
+            "severity": "PITFALL",
+            "title": f"SQLite database created without busy_timeout in {file_path.name}",
+            "file": str(file_path),
+            "why": "better-sqlite3 defaults to 0ms busy timeout. Database operations will immediately fail/crash under write contention.",
+            "fix_prompt": "Add db.pragma('busy_timeout = 5000') immediately after database construction.",
+            "source": "static",
+            "tags": ["reliability", "sqlite"],
+        })
+
+    # 3. Playwright browser connection leak
+    if "connectOverCDP" in content and not ("browser.close" in content or "browser.disconnect" in content):
+        findings.append({
+            "severity": "PITFALL",
+            "title": f"CDP connection leak in {file_path.name}",
+            "file": str(file_path),
+            "why": "connectOverCDP is used to connect to a browser but neither browser.close() nor browser.disconnect() is called, leaking WebSockets / file descriptors.",
+            "fix_prompt": "Ensure browser.close() or browser.disconnect() is called in a finally block.",
+            "source": "static",
+            "tags": ["resource-leak", "playwright"],
+        })
+
+    # 4. Express server close keep-alive hang
+    if "server.close()" in content and "closeAllConnections" not in content:
+        findings.append({
+            "severity": "HYGIENE",
+            "title": f"Express server shutdown may hang in {file_path.name}",
+            "file": str(file_path),
+            "why": "server.close() stops accepting new connections but keeps existing keep-alive connections active indefinitely, hanging clean shutdown.",
+            "fix_prompt": "Call server.closeAllConnections() before server.close() (supported in Node >= 18.2).",
+            "source": "static",
+            "tags": ["reliability", "express"],
+        })
+
+    return findings
+
+
 # ─── Main entry point ────────────────────────────────────────────────────────
 
 def run_static_checks(cwd: Path, changed_files: List[Path]) -> List[Dict]:
@@ -287,6 +347,7 @@ def run_static_checks(cwd: Path, changed_files: List[Path]) -> List[Dict]:
         findings.extend(_check_console_log_secrets(file_path, content))
         findings.extend(_check_todo_density(file_path, content))
         findings.extend(_check_env_file_committed(file_path))
+        findings.extend(_check_ecosystem_pitfalls(file_path, content))
 
     # Project-level checks (run once regardless of what changed)
     findings.extend(_check_gitignore(cwd))
