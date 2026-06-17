@@ -42,7 +42,7 @@ def is_sensitive_path(file_path: Path) -> bool:
     return False
 
 
-def is_within_vibeguard(file_path: Path, cwd: Path) -> bool:
+def is_within_vibecheck(file_path: Path, cwd: Path) -> bool:
     """Check if file is inside the .vibecheck/ directory."""
     try:
         resolved = file_path.resolve()
@@ -77,7 +77,7 @@ def filter_session_files(cwd: Path, files: List[Path]) -> List[Path]:
         if not is_within_project(f, cwd):
             filtered.append(str(f))
             continue
-        if is_within_vibeguard(f, cwd):
+        if is_within_vibecheck(f, cwd):
             filtered.append(str(f))
             continue
         safe.append(f)

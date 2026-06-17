@@ -225,7 +225,35 @@ If 2c returned no files with verification calls, skip 2p. Otherwise read every c
 
 2c finds the file. 2p finds every call site and checks the implementation is correct — not just present.
 
-### Always read (regardless of greps)
+### 2q — Native/stdlib replacement opportunities (LAZY-01 audit)
+
+These greps find places where an external package is being used that has a direct native replacement. File findings only when the native replacement is unambiguous and the call is not inside a compatibility shim or polyfill file.
+
+```bash
+# uuid dep when crypto.randomUUID() is available (Node ≥ 14.17, all modern browsers)
+grep -rn "require('uuid')\|from 'uuid'" \
+  . --include="*.ts" --include="*.js" --include="*.tsx" --include="*.jsx" \
+  | grep -v node_modules | grep -v "\.test\." | grep -v "\.spec\." | head -15
+
+# node-fetch when native fetch is available (Node ≥ 18)
+grep -rn "require('node-fetch')\|from 'node-fetch'" \
+  . --include="*.ts" --include="*.js" \
+  | grep -v node_modules | head -10
+
+# lodash.cloneDeep when structuredClone() is native (Node ≥ 17, all modern browsers)
+grep -rn "\.cloneDeep(" \
+  . --include="*.ts" --include="*.js" --include="*.tsx" --include="*.jsx" \
+  | grep -v node_modules | grep -v "\.test\." | head -10
+
+# Math.random() used for IDs/tokens (not cryptographically secure)
+grep -rn "Math\.random()\.toString(36)\|Math\.random.*replace.*[a-z0-9]" \
+  . --include="*.ts" --include="*.js" \
+  | grep -v node_modules | grep -v "\.test\." | head -10
+```
+
+For each match: check whether the file is a compatibility shim (name contains `polyfill`, `compat`, `shim`) — if so, skip. Otherwise file a HYGIENE finding with the native replacement. Never PITFALL or higher — these are code quality nudges, not security issues.
+
+
 - `.env.example` (for 2d cross-check)
 - `package.json` (already read in Phase 1)
 - Main entry point: `index.ts`, `server.ts`, `app.ts`, `main.py` (first found)
@@ -309,7 +337,7 @@ Everything on main with large irregular commits → HYGIENE.
 ## Output
 
 Load existing `.vibecheck/findings.json` (may be empty array `[]`).
-Generate IDs incrementing from highest existing vg-NNN.
+Generate IDs incrementing from highest existing vc-NNN.
 Tag all scan findings `"source": "scan"`.
 
 Max 15 findings. One finding per issue — no severity stacking.

@@ -338,12 +338,12 @@ def main():
 
     cwd = Path(args.cwd)
     files = [f for f in args.files.split(",") if f.strip()][:MAX_FILES]
-    vg_dir = cwd / ".vibecheck"
+    vc_dir = cwd / ".vibecheck"
 
-    if not vg_dir.exists():
+    if not vc_dir.exists():
         sys.exit(0)
 
-    lock_path = vg_dir / "async.lock"
+    lock_path = vc_dir / "async.lock"
 
     # Write lock file so post_tool.py knows we're running
     try:
@@ -355,20 +355,29 @@ def main():
         results = []
         import shutil
 
-        # Run Semgrep if available
-        if shutil.which("semgrep"):
+        cfg = {}
+        try:
+            cfg_path = vc_dir / "config.json"
+            if cfg_path.exists():
+                cfg = json.loads(cfg_path.read_text())
+        except Exception:
+            pass
+        mode = cfg.get("mode", "full")
+
+        # Run Semgrep if available (runs in full and pro modes)
+        if mode in ("full", "pro") and shutil.which("semgrep"):
             results.extend(run_semgrep(cwd, files))
 
-        # Run Gitleaks if available
-        if shutil.which("gitleaks"):
+        # Run Gitleaks if available (only in pro mode)
+        if mode == "pro" and shutil.which("gitleaks"):
             results.extend(run_gitleaks(cwd, files))
 
-        # Run mutation testing if configured (only when test files changed)
-        # This runs regardless of capability tier — it's config-gated, not tool-availability-gated
-        results.extend(run_mutation_testing(cwd, files))
+        # Run mutation testing if configured (only in pro mode)
+        if mode == "pro":
+            results.extend(run_mutation_testing(cwd, files))
 
         if results:
-            out_path = vg_dir / "async_results.json"
+            out_path = vc_dir / "async_results.json"
             out_path.write_text(json.dumps({
                 "results": results,
                 "generated_at": datetime.now(timezone.utc).isoformat(),

@@ -2,13 +2,30 @@
 
 Build with AI — without second-guessing every decision.
 
-VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where Claude makes changes — no waiting, no separate API calls.
+VibeCheck watches your code as you build and tells you what you're getting wrong, what you're overcomplicating, and what's not ready for production. It runs inline, in the same response where the AI makes changes — no waiting, no separate API calls.
 
-**Token cost**: the PostToolUse hook runs a sync regex pass (<200ms, zero tokens), then injects a structured evidence block into Claude's context. Claude confirms findings from that evidence rather than re-reading the file from scratch. Typical overhead is **500–2,000 tokens per response with file changes** (~$0.0003–$0.001 at Haiku rates, ~$0.001–$0.006 at Sonnet rates). Clean responses where nothing is flagged cost closer to 300 tokens. This counts against your existing Claude Code usage.
+Works with **Claude Code**, **Google Antigravity**, and **OpenAI Codex** — CLI and macOS Desktop apps.
+
+**Token cost**: the PostToolUse hook runs a sync regex pass (<200ms, zero tokens), then injects a structured evidence block into the AI's context. The AI confirms findings from that evidence rather than re-reading the file from scratch. Typical overhead is **500–2,000 tokens per response with file changes** (~$0.0003–$0.001 at Haiku/Flash rates, ~$0.001–$0.006 at Sonnet/Pro rates). Clean responses where nothing is flagged cost closer to 300 tokens. This counts against your existing AI usage.
 
 ## What it looks like
 
-After Claude finishes a task, at the bottom of the same response:
+**Before writing code**, the AI walks a decision ladder and states which rung stopped it:
+
+```
+Rung 2 — fetch is native since Node 18. No package needed.
+
+[proceeds to write code using fetch]
+```
+
+Or for a common problem category:
+
+```
+Rung 2 — zod is already installed in this project.
+I'll use it for the schema instead of writing a custom validator.
+```
+
+**After the AI finishes a task**, at the bottom of the same response:
 
 ```
 ---
@@ -36,11 +53,13 @@ VibeCheck: ✅ Safe to continue
 Type `/vibecheck`:
 
 ```
-⚡ vg-001 — Command files added but uninstall list not updated
-   Why: uninstall.js will leave vibecheck-skills.md and 2 others behind after removal
+🛡️  VibeCheck: Active (full mode)
+🤖 Model: Claude Sonnet (auto-selected)
+
+⚡ vc-001 — Command files added but uninstall list not updated
+   Why: uninstall.js will leave vibecheck-help.md behind after removal
    Fix → paste into Claude:
-   "In uninstall.js, add vibecheck-skills.md, vibecheck-promote-skill.md, and
-    vibecheck-model.md to the commandFiles array on line 105."
+   "In uninstall.js, add vibecheck-help.md to the commandFiles array on line 167."
 ```
 
 ## The questions VibeCheck answers
@@ -50,7 +69,7 @@ Type `/vibecheck`:
 3. **Is this safe for production?** — catches auth gaps, SQL injection, hardcoded secrets, missing webhook verification
 4. **Am I missing something obvious?** — cross-file consistency, missing migrations, callers not updated
 5. **What should I fix before I ship?** — specific `🧪 Before shipping:` line every time, not generic advice
-6. **Is the AI coding the way a senior dev would?** — 12 standing engineering rules injected into every project: no false tests, no scope creep, no unsubstantiated performance claims, no half-migrations, no generated files accepted without reading them
+6. **Is the AI coding the way a senior dev would?** — a mandatory pre-implementation decision ladder forces the AI to check for native APIs, stdlib, installed packages, and well-known ecosystem solutions *before* writing a single line
 
 ## Setup
 
@@ -58,14 +77,14 @@ Type `/vibecheck`:
 npx github:playgroundparth/VibeCheck init
 ```
 
-That's it. VibeCheck is now active. Restart Claude Code once after running init.
+That's it. VibeCheck installs into whichever AI coding apps are active in your project (Claude Code, Antigravity, Codex — or all three). Restart the app once after running init.
 
 **If you have existing code** (not starting from scratch), also run a one-time scan after init:
 
 ```
-/vibecheck-scan               # fast (Haiku, ~$0.05) — good for first pass
-/vibecheck-scan --deep        # thorough (Sonnet, ~$0.30) — deeper analysis
-/vibecheck-scan --model opus  # exhaustive (Opus, ~$2–4) — maximum depth
+/vibecheck-scan               # fast (lite mode) — good for first pass
+/vibecheck-scan --deep        # thorough (full mode) — deeper analysis
+/vibecheck-scan --pro         # exhaustive (pro mode) — maximum depth
 /vibecheck-scan auth          # focused — weight greps toward an area
 ```
 
@@ -73,21 +92,46 @@ Going forward, VibeCheck runs automatically after every change — the scan is a
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/code) installed and authenticated
+- One or more of: [Claude Code](https://claude.ai/code), [Google Antigravity](https://deepmind.google/antigravity), [OpenAI Codex](https://openai.com/codex)
 - Node.js 18+
 - Python 3.8+
 
 ## How it works
 
-Init writes 12 engineering standards into your project's `CLAUDE.md` — standing rules that apply to every response Claude generates, not just the post-write check. These cover the failure modes that senior devs catch in code review but vibecoders miss: false tests that confirm execution without verifying correctness, scope creep that makes diffs unreviewable, generated migration files accepted without reading them, and unsubstantiated performance claims. The rules are imperative and non-negotiable — not suggestions Claude weighs, but constraints it applies before shipping any change.
+**Before writing or planning anything**, the AI runs a 4-rung decision ladder injected at the top of the system prompt. It fires on every implementation request — before the AI formulates an approach, proposes a plan, or writes a single line:
 
-The PostToolUse hook runs after every file write. It executes a sync regex pass against the changed file (<200ms, zero tokens), produces a structured evidence block with confidence tiers, and injects that into Claude's context. Claude's job is to confirm each evidence item by reading the cited code — not to detect patterns from scratch. This separation means detection is deterministic (hook-owned) and judgment is LLM-quality (Claude-owned).
+1. **Does this need to exist?** — YAGNI. If the user didn't ask for it, skip it.
+2. **Does a trusted existing solution do this?** — The AI checks (in order): native platform APIs, stdlib, installed packages, and established ecosystem tools. A senior dev already knows that `crypto.randomUUID()` replaced the `uuid` package, that `fetch` is native since Node 18, that `structuredClone()` replaced `_.cloneDeep`, that `[...new Set(arr)]` is one line. It also knows the industry-standard answer for common problem categories: zod for validation, Resend for email, BullMQ for queues, next-auth for auth. The AI must state which rung stopped the search out loud, before any code or plan appears.
+3. **Is it one line?** — Write one line.
+4. **Write the minimum that works** — covering trust boundaries, data safety, security, and accessibility. Nothing else.
 
-Three hooks are installed:
+The output is visible in every response. You'll see the rung called out before the code block.
 
-- **PostToolUse hook** — runs sync detection on every file write, injects structured evidence into Claude's context, extracts project facts (auth provider, ORM, webhook setup), launches optional background Semgrep scan on Enhanced/Pro tiers
-- **Stop hook** — runs the same static checks as a backstop in case a response ends without a VibeCheck footer (long responses, interrupted tasks). Also logs task completion. In practice the inline check fires reliably because detection happens before Claude generates its response, not after — Claude is reacting to the hook's evidence, not following a CLAUDE.md instruction from memory.
+**After every file write**, the PostToolUse hook runs a sync regex pass (<200ms, zero tokens), produces a structured evidence block with confidence tiers, and injects that into the AI's context. The AI confirms each evidence item by reading the cited code — detection is deterministic (hook-owned), judgment is LLM-quality (AI-owned).
+
+**Static checks** also run on changed files after every write (zero tokens, <100ms). These catch patterns that don't need LLM judgment:
+
+- Native API replacements: `uuid` → `crypto.randomUUID()`, `node-fetch` → `fetch`, `_.cloneDeep` / `JSON.parse(JSON.stringify(...))` → `structuredClone()`, `Math.random()` for IDs → `crypto.randomUUID()`
+- Installed dep ignored: date-fns installed but custom date formatter written, zod installed but custom validator written, p-retry installed but custom retry loop written, lodash installed but debounce reimplemented
+- Secrets hardcoded, `.env` committed, `.env` not in `.gitignore`, missing lock file, missing README
+
+**Architecture checks** (offline, <500ms, zero tokens):
+- **ARCH-CYCLE**: circular dependency cycles (Tarjan SCC) — e.g. A → B → C → A
+- **ARCH-GOD**: god-file outliers (large file size + high fan-in)
+- **ARCH-LAYER**: architectural layer violations (e.g. `infra/` module importing from `api/`)
+- **ARCH-DUP**: code duplication detector using a sliding-window hash
+- **ARCH-DEAD**: dead/unreachable files (zero importers, excluding entry points and configs)
+- **ARCH-DRIFT**: architectural coupling drift (module gained >5 new importers since last scan)
+
+**12 engineering standards** are written into `CLAUDE.md` — standing rules that apply to every response: no false tests, no scope creep, no unsubstantiated performance claims, no half-migrations, no generated files accepted without reading them.
+
+Three hooks are installed per app:
+
+- **PostToolUse hook** — runs sync detection on every file write, injects structured evidence into the AI's context, extracts project facts (auth provider, ORM, webhook setup), launches optional background Semgrep scan on Enhanced/Pro tiers
+- **Stop hook** — runs the same static checks as a backstop in case a response ends without a VibeCheck footer (long responses, interrupted tasks). Also logs task completion.
 - **SessionStart hook** — injects open findings count and recent context into every new session so nothing is forgotten. Also surfaces any Semgrep/Gitleaks findings from the previous session's background scan.
+
+Hooks are installed into each active app's workspace directory (`.claude/`, `.agents/`, `.codex/`) and registered globally in the app's user-level settings file — so they fire in git worktrees and macOS Desktop apps without any extra configuration.
 
 All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves your machine unless you opt into anonymous usage stats during init.
 
@@ -103,6 +147,19 @@ All findings are stored locally in `.vibecheck/findings.json`. Nothing leaves yo
 
 ---
 
+## Modes
+
+VibeCheck has four intensity modes. Switch with `/vibecheck <mode>` — the model is auto-selected for your platform:
+
+| Mode | What runs | Claude | Antigravity | Codex |
+|---|---|---|---|---|
+| `lite` | Regex only, no async | Haiku | Gemini Flash | GPT-5.4 Mini |
+| `full` *(default)* | Regex + Semgrep | Sonnet | Gemini Pro | GPT-5.4 |
+| `pro` | Regex + Semgrep + Gitleaks + mutation | Opus | Gemini Pro | GPT-5.5 |
+| `off` | Hooks installed but silent | — | — | — |
+
+You never need to pick a model manually. Switching mode is all you need.
+
 ## Verdicts
 
 Every VibeCheck footer ends with one of three verdicts:
@@ -117,24 +174,31 @@ The verdict is a holistic judgment, not a mechanical count.
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `/vibecheck` | Show open findings summary |
-| `/vibecheck vg-001` | Full detail on one finding |
-| `/vibecheck-resolve vg-001` | Mark a finding as resolved |
-| `/vibecheck-scan` | Scan codebase (Haiku, grep-first, ~$0.05) |
-| `/vibecheck-scan --deep` | Deeper scan (Sonnet, ~$0.30) |
-| `/vibecheck-scan --model opus` | Exhaustive scan (Opus, ~$2–4) |
-| `/vibecheck-scan auth` | Focused scan — weight greps toward an area |
-| `/vibecheck-review` | Senior-dev review of everything changed since last commit |
-| `/vibecheck-stage mvp\|growth\|prod` | Set project stage to adjust severity thresholds |
-
+| Command | Subcommands / Options | What it does |
+|---|---|---|
+| **/vibecheck** | | **The Central Dashboard.** Lists open findings, mode, and auto-selected model. |
+| | `<id>` | View details for finding `<id>` (e.g. `/vibecheck vc-003`). |
+| | `resolve <id> [note]` | Mark finding `<id>` as resolved. |
+| | `report` | Regenerate the HTML dashboard and open it in the side panel. |
+| | `timeline` | Print the append-only event log (decisions, changes, milestones). |
+| | `lite \| full \| pro \| off` | Set checking intensity mode. Auto-selects the platform model. |
+| | `stage mvp \| growth \| prod` | Set project stage to adjust severity thresholds. |
+| | `help` | Print quick reference. |
+| **/vibecheck-scan** | | **Full Repository Scan.** Runs AST-first analysis across the codebase. |
+| | `--deep` \| `--pro` | Deeper scan tiers (Semgrep / Semgrep+Gitleaks). |
+| | `[area]` | Focus scan on a path or keyword (e.g. `auth`, `src/payments`). |
+| **/vibecheck-review** | | **Diff Review.** Analyze the current git diff for security and correctness. |
+| **/vibecheck-skills** | | **Integration Skill Manager.** List auto-proposed context skills. |
+| | `promote <name>` | Activate a proposed skill into the active skills directory. |
+| **/vibecheck-help** | | Display the VibeCheck quick reference. |
 
 ## What VibeCheck catches
 
-Two check surfaces with different scope:
+Three check surfaces, each with a different scope:
 
-**Inline check** — runs after every file change, via hook + Claude confirmation. Covers patterns where a regex can confirm both the risk and the absence of mitigation in the changed file:
+**Pre-implementation ladder** — fires at response start, before any planning or writing. The AI states out loud which rung stopped it. Catches: reinvented native APIs, installed deps ignored, custom solutions for problems the ecosystem already answers, unnecessary features.
+
+**Inline check** — runs after every file change, via hook + AI confirmation:
 
 | Pattern | Severity | Detection method |
 |---------|---------|-----------------|
@@ -143,15 +207,27 @@ Two check surfaces with different scope:
 | Shell command built with string concatenation | Critical | Regex, hook-confirmed |
 | Unsafe deserialization (`pickle.loads`, `yaml.load`) | Critical | Regex, hook-confirmed |
 | Open redirect: `res.redirect(req.query.*)` | Critical | Regex, hook-confirmed |
-| Webhook endpoint with no signature verification | Critical | File-scope check, Claude-confirmed |
+| Webhook endpoint with no signature verification | Critical | File-scope check, AI-confirmed |
 | Env var used in code but absent from `.env.example` | Critical | Cross-file check, hook-confirmed |
 | `.env` file committed | Critical | Filename check |
 | `.env` not in `.gitignore` | Critical | File check |
 | New source file with no callers | Pitfall | Reverse-dep map |
-| Schema changed, no migration file | Critical | Claude-confirmed |
-| AUTH-01: route touches user data, no auth check | Critical | Claude-confirmed |
-| AUTH-08: exported function signature changed, callers not updated | Critical | Claude-confirmed |
-| Cross-file inconsistency (added to collection, cleanup not updated) | Pitfall | Claude-confirmed |
+| Schema changed, no migration file | Critical | AI-confirmed |
+| AUTH-01: route touches user data, no auth check | Critical | AI-confirmed |
+| AUTH-08: exported function signature changed, callers not updated | Critical | AI-confirmed |
+| Cross-file inconsistency (added to collection, cleanup not updated) | Pitfall | AI-confirmed |
+| `uuid` package → `crypto.randomUUID()` is native | Hygiene | Static check |
+| `node-fetch` → `fetch` is native since Node 18 | Hygiene | Static check |
+| `_.cloneDeep` / `JSON.parse(JSON.stringify(...))` → `structuredClone()` | Hygiene | Static check |
+| `Math.random()` for IDs/tokens → `crypto.randomUUID()` | Hygiene | Static check |
+| External base64 package → `Buffer.from()` is native | Hygiene | Static check |
+| URL string concatenation → `new URL()` + `URLSearchParams` | Hygiene | Static check |
+| Custom dedup function → `[...new Set(arr)]` | Hygiene | Static check |
+| Custom date formatter when date-fns/dayjs is installed | Hygiene | Static check |
+| Custom validator when zod/joi/yup is installed | Hygiene | Static check |
+| Custom retry loop when p-retry is installed | Hygiene | Static check |
+| Custom HTTP wrapper when axios/got is installed | Hygiene | Static check |
+| Custom utility function when lodash is installed | Hygiene | Static check |
 
 **`/vibecheck-review`** — on-demand, runs after larger changes or before shipping. Applies the full 30-pattern catalog to everything changed since the last commit:
 
@@ -165,15 +241,17 @@ Two check surfaces with different scope:
 
 Two OPS patterns (undocumented env vars, dead exports) run automatically on every change via the hook — they don't wait for `/vibecheck-review`.
 
-**TEST-01 is `will-bite-you`, not `nice-to-have`**: Claude writes both the implementation and the tests. AI-generated tests routinely assert that code runs without error, not that it produces correct results. Mutation testing (Stryker for JS/TS, mutmut for Python, Pitest for Java) is the only reliable way to verify your tests would catch a real bug — VibeCheck surfaces it when tests exist but no mutation config is found.
+**TEST-01 is `will-bite-you`, not `nice-to-have`**: AI coding tools write both the implementation and the tests. AI-generated tests routinely assert that code runs without error, not that it produces correct results. Mutation testing (Stryker for JS/TS, mutmut for Python, Pitest for Java) is the only reliable way to verify your tests would catch a real bug — VibeCheck surfaces it when tests exist but no mutation config is found.
 
 **Never reported**: code style, naming, console.log (unless leaking a secret), large files, anything already in existing open findings.
 
 ## Integration skills
 
-When VibeCheck detects that you're using Stripe, Supabase, Clerk, Prisma, OpenAI, or Vercel, it auto-installs an integration skill into `.claude/skills/`. These are focused guidance documents — they don't replace the anti-pattern catalog, they add integration-specific rules on top of it (webhook verification patterns, connection pooling specifics, RLS gotchas, etc.).
+When VibeCheck detects that you're using Stripe, Supabase, Clerk, Prisma, OpenAI, or Vercel, it auto-installs an integration skill into your active app's skills directory. These are focused guidance documents — they don't replace the anti-pattern catalog, they add integration-specific rules on top of it (webhook verification patterns, connection pooling specifics, RLS gotchas, etc.).
 
 `/vibecheck-review` automatically reads the relevant skill when the changed files match the integration.
+
+Use `/vibecheck-skills` to see what's been proposed, and `/vibecheck-skills promote <name>` to activate one.
 
 ## Updating
 
@@ -183,7 +261,7 @@ When a new version is released, run this in your project to pull in the latest h
 npx github:playgroundparth/VibeCheck update
 ```
 
-This re-copies only the VibeCheck files into `.claude/` — your `.vibecheck/` findings, `CLAUDE.md`, and `settings.json` are never touched. Restart Claude Code after updating.
+This re-copies the updated VibeCheck files into all active workspace directories (`.claude/`, `.agents/`, `.codex/`) — your `.vibecheck/` findings, `CLAUDE.md`, and global settings are never touched. Restart the app after updating.
 
 ## Uninstall
 
@@ -192,19 +270,29 @@ npx github:playgroundparth/VibeCheck uninstall          # full removal
 npx github:playgroundparth/VibeCheck uninstall --keep-data   # remove hooks, keep findings history
 ```
 
+Removes hooks from all active workspace directories and deregisters them from each app's global settings file.
+
 ## Checking your installation
 
 ```bash
 npx github:playgroundparth/VibeCheck doctor
 ```
 
-Reports pass/warn/fail for every component: hook files, lib files, commands, global settings registration, CLAUDE.md section, Python availability.
+Reports pass/warn/fail for every component across all installed apps: hook files, lib files, commands, global settings registration, CLAUDE.md section, Python availability.
 
 ## Privacy
 
 - All findings are stored locally in `.vibecheck/` (auto-added to `.gitignore`)
 - Usage telemetry is **currently not collected** — the opt-in dialog is placeholder until a PostHog project is configured. No data is sent regardless of your answer during `init`.
 - When telemetry is enabled in a future release: only event names and counts will be sent (never file paths, code, or finding content), via PostHog. You'll be able to opt out with `VIBECHECK_TELEMETRY=0` or `DO_NOT_TRACK=1`.
+
+## Debugging
+
+```bash
+export VIBECHECK_DEBUG=1
+```
+
+Writes a debug log to `.vibecheck/debug.log` while hooks are running. Useful for diagnosing why a hook isn't firing or why a finding isn't appearing.
 
 ## Development
 

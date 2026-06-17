@@ -186,13 +186,13 @@ def extract(file_path: str, content: str) -> dict:
 
 # ── Merge into project_context.json ─────────────────────────────────────────
 
-def update_context(vg_dir: Path, file_path: str, content: str) -> None:
+def update_context(vc_dir: Path, file_path: str, content: str) -> None:
     """Extract facts from a file and merge into project_context.json."""
     facts = extract(file_path, content)
     if not facts:
         return
 
-    ctx_path = vg_dir / "project_context.json"
+    ctx_path = vc_dir / "project_context.json"
     ctx = {}
     if ctx_path.exists():
         try:
@@ -262,9 +262,9 @@ def update_context(vg_dir: Path, file_path: str, content: str) -> None:
 
 # ── Summary for injection ────────────────────────────────────────────────────
 
-def summarize(vg_dir: Path) -> str:
+def summarize(vc_dir: Path) -> str:
     """Return a one-line summary of project_context for Claude's context."""
-    ctx_path = vg_dir / "project_context.json"
+    ctx_path = vc_dir / "project_context.json"
     if not ctx_path.exists():
         return ""
     try:

@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 import store, static_checks, guardrails, project, metrics, telemetry, patterns
 
-DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
+DEBUG = os.environ.get("VIBECHECK_DEBUG") == "1"
 
 def debug_log(cwd, msg):
     if DEBUG:
@@ -30,6 +30,11 @@ def main():
     raw_cwd = Path(hook_input.get("cwd", os.getcwd()))
     cwd = project.find_project_root(raw_cwd)
     if not cwd or not store.is_initialized(cwd):
+        sys.exit(0)
+
+    cfg = store.load_config(cwd)
+    mode = cfg.get("mode", "full")
+    if mode == "off":
         sys.exit(0)
 
     transcript_path = hook_input.get("transcript_path", "")
@@ -96,12 +101,12 @@ def main():
 
     findings = store.load_findings(cwd)
     open_findings = [f for f in findings if f.get("status", "open") == "open"]
-    next_id = max((int(f["id"].split("-")[1]) for f in findings if f.get("id","").startswith("vg-")), default=0) + 1
+    next_id = max((int(f["id"].split("-")[1]) for f in findings if f.get("id","").startswith("vc-") or f.get("id","").startswith("vg-")), default=0) + 1
 
     # Read project_stage from memory.json for Layer 1 stage-aware context
     project_stage = None
     try:
-        mem_path = store.vg_dir(cwd) / "memory.json"
+        mem_path = store.vc_dir(cwd) / "memory.json"
         if mem_path.exists():
             mem = json.loads(mem_path.read_text())
             project_stage = mem.get("project_stage") or mem.get("project", {}).get("stage")
@@ -134,7 +139,7 @@ def main():
 If you already appended the VibeCheck footer above — you're done, ignore this.
 If you didn't — do it now (CLAUDE.md §VibeCheck requires it after every Write/Edit/MultiEdit).
 
-Next finding ID: vg-{next_id:03d}
+Next finding ID: vc-{next_id:03d}
 Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}{stage_hint}"""
 
     print(json.dumps({"systemMessage": msg}))
@@ -142,7 +147,7 @@ Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}{stage_hint}"
     # Clear active_frameworks.json — frameworks are per-response, not persistent.
     # Claude has already read this file as part of its inline VibeCheck step.
     # Clearing it ensures next response starts with a clean slate.
-    af_path = store.vg_dir(cwd) / "active_frameworks.json"
+    af_path = store.vc_dir(cwd) / "active_frameworks.json"
     if af_path.exists():
         try:
             af_path.unlink()
@@ -151,40 +156,81 @@ Findings file: {cwd / '.vibecheck' / 'findings.json'}{open_summary}{stage_hint}"
 
 
 def get_changed_files_this_turn(transcript_path, cwd):
-    if not transcript_path or not Path(transcript_path).exists():
-        return []
-    try:
-        lines = Path(transcript_path).read_text().splitlines()
-    except Exception:
-        return []
+    changed = []
 
-    changed, in_last_turn = [], False
-    last_turn_entries = []
-    for line in reversed(lines):
+    # 1. Parse transcript if available
+    if transcript_path and Path(transcript_path).exists():
         try:
-            entry = json.loads(line)
-        except Exception:
-            continue
-        entry_type = entry.get("type", "")
-        if entry_type == "assistant":
-            in_last_turn = True
-        if in_last_turn:
-            last_turn_entries.append(entry)
-        if in_last_turn and entry_type == "user":
-            break
+            lines = Path(transcript_path).read_text().splitlines()
+            in_last_turn = False
+            last_turn_entries = []
+            for line in reversed(lines):
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                entry_type = entry.get("type", "")
+                if entry_type == "assistant":
+                    in_last_turn = True
+                if in_last_turn:
+                    last_turn_entries.append(entry)
+                if in_last_turn and entry_type == "user":
+                    break
 
-    for entry in last_turn_entries:
-        content = entry.get("message", {}).get("content") or entry.get("content") or []
-        for block in content:
-            if not isinstance(block, dict) or block.get("type") != "tool_use":
-                continue
-            if block.get("name") not in ("Write", "Edit", "MultiEdit"):
-                continue
-            fp = block.get("input", {}).get("file_path") or block.get("input", {}).get("path", "")
-            if fp:
-                p = Path(fp) if Path(fp).is_absolute() else cwd / fp
-                if p.exists() and p not in changed:
-                    changed.append(p)
+            write_tools = {
+                "Write", "Edit", "MultiEdit",
+                "write_to_file", "replace_file_content", "multi_replace_file_content",
+                "write_file", "apply_patch"
+            }
+
+            for entry in last_turn_entries:
+                content = entry.get("message", {}).get("content") or entry.get("content") or []
+                for block in content:
+                    if not isinstance(block, dict) or block.get("type") != "tool_use":
+                        continue
+                    if block.get("name") not in write_tools:
+                        continue
+                    input_data = block.get("input", {})
+                    fp = (
+                        input_data.get("file_path") or
+                        input_data.get("path") or
+                        input_data.get("TargetFile") or
+                        input_data.get("AbsolutePath") or ""
+                    )
+                    if fp:
+                        p = Path(fp) if Path(fp).is_absolute() else cwd / fp
+                        if p.exists() and p not in changed:
+                            changed.append(p)
+        except Exception:
+            pass
+
+    # 2. Fallback to git status --porcelain
+    if not changed:
+        try:
+            import subprocess
+            res = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            for line in res.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2:
+                    status, rel_path = parts
+                    if "->" in rel_path:
+                        rel_path = rel_path.split("->")[-1].strip()
+                    rel_path = rel_path.strip('"')
+                    p = cwd / rel_path
+                    if p.exists() and p not in changed:
+                        changed.append(p)
+        except Exception:
+            pass
+
     return changed
 
 

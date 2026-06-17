@@ -123,7 +123,7 @@ def is_quick_win(finding: Dict) -> bool:
 
 def generate_report(cwd: Path) -> Path:
     """Generate health-report.html. Returns path to the file."""
-    report_path = store.vg_dir(cwd) / "health-report.html"
+    report_path = store.vc_dir(cwd) / "health-report.html"
 
     findings = store.load_findings(cwd)
     all_open = [f for f in findings if f.get("status") == "open"]
@@ -289,7 +289,7 @@ def _render_html(proj, cfg, memory, summary, open_findings, quick_wins,
       Project ID: <code>{html.escape(proj['id'])}</code>
       &nbsp;·&nbsp; Branch: <code>{html.escape(proj.get('git_branch') or 'no-git')}</code>
       &nbsp;·&nbsp; Generated: {now}
-      &nbsp;·&nbsp; Model: {html.escape(cfg.get('model', 'haiku'))}
+      &nbsp;·&nbsp; Mode: {html.escape(cfg.get('mode', 'full'))} ({html.escape(store.get_model_info(cwd)['label'])})
     </div>
   </header>
 
@@ -497,7 +497,9 @@ def _describe_event(entry: Dict) -> str:
         return f"Decision: {entry.get('what', '')}"
     if t == "scan_run":
         return f"Scan ran — {entry.get('findings_added', 0)} findings added"
-    if t == "model_changed":
+    if t in ("model_changed", "mode_changed"):
+        if "mode" in entry:
+            return f"Mode changed to {entry.get('mode', '')}"
         return f"Model changed to {entry.get('model', '')}"
     if t == "analysis_run":
         return f"Analysis run — {entry.get('findings_added', 0)} findings, {entry.get('files_analyzed', 0)} files"

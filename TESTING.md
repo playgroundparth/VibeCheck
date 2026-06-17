@@ -31,11 +31,11 @@ You should see your project files when you run `ls` (Mac/Linux) or `dir` (Window
 
 ## Step 2 — Install VibeCheck
 
-For now, since this is pre-release, copy the entire `vibeguard/` folder to a known location (e.g., `~/Code/vibeguard/`).
+For now, since this is pre-release, copy the entire `vibecheck/` folder to a known location (e.g., `~/Code/vibecheck/`).
 
 Then from your project directory, run:
 ```bash
-node ~/Code/vibeguard/bin/cli.js init
+node ~/Code/vibecheck/bin/cli.js init
 ```
 
 (When VibeCheck is published to npm later, this becomes `npx vibecheck init`.)
@@ -112,7 +112,7 @@ Save the file.
 This analyzes your existing 199 files. **Cost: $0.05–$0.15** on Haiku (default).
 
 ```bash
-node ~/Code/vibeguard/bin/cli.js scan
+node ~/Code/vibecheck/bin/cli.js scan
 ```
 
 You'll see:
@@ -200,7 +200,7 @@ Just code as usual with Claude. After every task, you'll see a one-liner like:
 
 Run this command anytime to see real metrics:
 ```bash
-node ~/Code/vibeguard/bin/cli.js status
+node ~/Code/vibecheck/bin/cli.js status
 ```
 
 You'll see:
@@ -246,7 +246,7 @@ Signals:
 
 If something seems wrong, enable debug logging:
 ```bash
-export VIBEGUARD_DEBUG=1
+export VIBECHECK_DEBUG=1
 ```
 Then use Claude Code normally. Every hook fire writes to `.vibecheck/debug.log`. Check that file for what happened.
 
@@ -292,7 +292,7 @@ That's it. Don't pre-clean anything. Real usage data is what we need.
 
 **"VibeCheck hasn't run yet" after multiple tasks**
 
-The hooks may not be firing. Check `.claude/settings.json` has the hooks registered. Try `export VIBEGUARD_DEBUG=1` and watch `.vibecheck/debug.log`.
+The hooks may not be firing. Check `.claude/settings.json` has the hooks registered. Try `export VIBECHECK_DEBUG=1` and watch `.vibecheck/debug.log`.
 
 **Subprocess errors / "claude command not found"**
 

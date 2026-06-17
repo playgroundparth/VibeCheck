@@ -321,7 +321,7 @@ def prune_stale_patterns(cwd: Path):
 # ─── Persistence ─────────────────────────────────────────────────────────────
 
 def patterns_dir(cwd: Path) -> Path:
-    return store.vg_dir(cwd) / "patterns"
+    return store.vc_dir(cwd) / "patterns"
 
 
 def load_all_patterns(cwd: Path) -> List[Dict]:

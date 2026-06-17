@@ -23,6 +23,56 @@ To append: Read `timeline.json` (or treat as `{"events":[]}` if missing), add th
 
 ---
 
+## Before you start — run this first on every implementation request
+
+**Trigger**: any request that involves building, implementing, or adding something new — before you write a single line of code, before you outline a plan, before you decide on an approach.
+
+**Skip if**: bug fix on existing code, rename, config tweak, or pure documentation change.
+
+Walk the rungs top to bottom. Stop at the first that holds. **State which rung stopped you — out loud, in your response — before writing any code or proposing any plan.**
+
+1. **Does this need to exist?** — If the user didn't ask for it and it's not clearly required to make the requested thing work, skip it. YAGNI is not an excuse to skip error handling, auth, or data-loss protection — those always exist.
+
+2. **Does a trusted existing solution do this?** — Before deciding on an implementation, ask: *what does the ecosystem answer for this problem category?* A senior dev doesn't google this — they already know. Check in this order:
+
+   - **Native platform / stdlib first** — the platform ships more than most people use:
+     - Unique IDs → `crypto.randomUUID()` (Node ≥ 14.17, all modern browsers)
+     - Deep clone → `structuredClone()` (Node ≥ 17) — not `JSON.parse(JSON.stringify(...))`
+     - HTTP → `fetch` (native, Node ≥ 18) — not a new package
+     - URL building → `new URL(base)` + `.searchParams.set(...)` — not string concatenation
+     - Base64 → `Buffer.from(x).toString('base64')` / `atob`/`btoa` — not a custom encoder
+     - Array dedup → `[...new Set(arr)]` — not a custom dedup function
+     - Object subset → destructuring `const { a, b } = obj` — not a utility for 1–2 fields
+     - Date formatting → `Intl.DateTimeFormat` / `date.toLocaleDateString()` — not a custom formatter for simple cases
+     - Env vars → `process.env.X ?? defaultValue` — not an abstraction layer for a single service
+
+   - **Already installed in this project?** Check `package.json` / `requirements.txt` / `Cargo.toml` BEFORE proposing anything. If the problem category is already covered, use what's there — don't add a second library or hand-roll it alongside an existing one.
+     - date-fns / dayjs / moment installed → use it for all date work
+     - zod / joi / yup installed → use it for all validation — not a custom validator object
+     - axios / got / ky installed → use it directly — don't wrap it unless eliminating real repetition across 3+ call sites
+     - lodash / lodash-es installed → use it for debounce, throttle, groupBy, chunk — not a reimplementation
+     - winston / pino installed → use it for logging — not console.log sprinkled through business logic
+     - p-retry / retry installed → use it for retry logic — not a custom retry loop
+
+   - **Well-known ecosystem answers** — even if not installed yet, these are the standard answers for common problem categories. Propose them; don't build custom alternatives:
+     - Transactional email → Resend, Postmark, Nodemailer (not raw SMTP from scratch)
+     - Background jobs / queues → Inngest, BullMQ, Celery (not setTimeout polling)
+     - Authentication → next-auth, Clerk, Lucia, Passport (not custom JWT from scratch)
+     - File uploads → uploadthing, multer, presigned S3 URLs (not streaming byte-by-byte)
+     - Rate limiting → express-rate-limit, Upstash ratelimit (not an in-memory counter)
+     - Schema validation → zod (TS), pydantic (Python), joi — not a nested if-block validator
+     - Config / secrets → dotenv, t3-env, Pydantic Settings — not manual process.env everywhere
+
+   **The test**: would a senior dev in this stack, reading the plan or the code, immediately ask "why didn't you just use X?" If yes — use X, or ask the user if they want to.
+
+3. **Is it one line?** — Write one line.
+
+4. **Write the minimum that works.** — The minimum that correctly handles trust boundaries (validate inputs from external sources), data loss (don't silently drop errors), security (auth, injection, exposure), and accessibility (don't break keyboard/screen reader paths). Everything else is optional until you need it.
+
+**Lazy, not negligent.** These are never on the chopping block: input validation at trust boundaries, error handling on data-loss paths, auth checks, accessibility on interactive elements.
+
+---
+
 ## Engineering standards — apply to every response
 
 These are not suggestions. A senior dev would catch every one of these in code review. Apply them before shipping any change.
@@ -65,6 +115,7 @@ When a tool generates output — a database migration, an OpenAPI spec, a Prisma
 
 ---
 
+
 ## VibeCheck (active) — evidence-driven inline check
 
 After ANY response where you used Write, Edit, or MultiEdit tools, run this at the END of your response.
@@ -72,6 +123,7 @@ After ANY response where you used Write, Edit, or MultiEdit tools, run this at t
 **Short-circuit**: if the `[VibeCheck Detection]` block says "No issues detected" AND the change is a comment fix, typo, or config value tweak with no structural impact → output `✅ Safe to continue` and stop.
 
 ---
+
 
 ### Step 1 — Read the detection evidence
 
@@ -136,7 +188,7 @@ Common examples (not exhaustive):
 
 Full anti-pattern catalog (30 patterns with fix prompts) available via `/vibecheck-review`.
 
-**Stage-aware judgment**: read `project_stage` from `memory.json` (set via `/vibecheck-stage`). If set, apply the questions and severity changes below — these aren't just escalations, they change what you *ask*.
+**Stage-aware judgment**: read `project_stage` from `memory.json` (set via `/vibecheck stage`). If set, apply the questions and severity changes below — these aren't just escalations, they change what you *ask*.
 
 `mvp` — pre-PMF, speed matters more than architecture:
 - When you see ARCH-05 (service layers, event buses, multi-file abstractions for a single operation): ask explicitly — "Is this complexity solving a problem you already have, or one you're anticipating?" If anticipated: the fix is *deletion*, not simplification. Severity: **PITFALL** (not nice-to-have — overbuilding at MVP stage has a real cost: slower iteration, harder debugging, code you'll throw away anyway).
@@ -164,7 +216,7 @@ Full anti-pattern catalog (30 patterns with fix prompts) available via `/vibeche
 
 Finding format (append to `.vibecheck/findings.json`):
 ```json
-{"id":"vg-NNN","severity":"CRITICAL|PITFALL|HYGIENE|GOOD_TO_HAVE","title":"under 100 chars","file":"relative/path:line","why":"concrete consequence, under 200 chars","fix_prompt":"paste-ready fix","status":"open","source":"live","detected_at":"ISO timestamp"}
+{"id":"vc-NNN","severity":"CRITICAL|PITFALL|HYGIENE|GOOD_TO_HAVE","title":"under 100 chars","file":"relative/path:line","why":"concrete consequence, under 200 chars","fix_prompt":"paste-ready fix","status":"open","source":"live","detected_at":"ISO timestamp"}
 ```
 Max 3 new findings. Zero is valid. Never include secret values in `why` or `fix_prompt`.
 
@@ -255,4 +307,4 @@ Bad: `node --import tsx/esm --test src/tests/core.test.ts && npx stryker run`
 
 If the only honest verification is a CLI command a developer would understand, write it — but explain what a passing result looks like in plain English after it.
 
-Commands: `/vibecheck` · `/vibecheck <id>` · `/vibecheck-resolve <id>` · `/vibecheck-scan` · `/vibecheck-review` · `/vibecheck-stage`
+Commands: `/vibecheck` · `/vibecheck <id>` · `/vibecheck resolve <id>` · `/vibecheck-scan` · `/vibecheck-review` · `/vibecheck-skills` · `/vibecheck-help`

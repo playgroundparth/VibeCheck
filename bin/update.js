@@ -39,9 +39,9 @@ function findRepoRoot(fromDir) {
 
 const cwd = findRepoRoot(process.cwd());
 const claudeDir = path.join(cwd, ".claude");
-const vgDir = path.join(cwd, ".vibecheck");
+const vcDir = path.join(cwd, ".vibecheck");
 
-if (!fs.existsSync(vgDir)) {
+if (!fs.existsSync(vcDir)) {
   console.log("VibeCheck is not installed in this project. Run: npx github:playgroundparth/VibeCheck init");
   process.exit(0);
 }
@@ -59,7 +59,7 @@ let updated = [];
 const libFiles = [
   "store.py", "static_checks.py", "patterns.py", "guardrails.py",
   "project.py", "project_map.py", "health_report.py", "ignore.py",
-  "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
+  "metrics.py", "context_extractor.py", "vc_display.py", "telemetry.py",
   "graphify_query.py", "detection_engine.py", "capability.py", "async_detection.py",
 ];
 const libDir = path.join(claudeDir, "hooks", "lib");

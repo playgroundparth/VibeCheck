@@ -50,7 +50,7 @@ Multi-project (if global registry enabled):
 
 Inside Claude Code:
   /vibecheck                   See all findings with fix prompts
-  /vibecheck [id]              Full detail on one finding (e.g. /vibecheck vg-001)
+  /vibecheck [id]              Full detail on one finding (e.g. /vibecheck vc-001)
   /vibecheck-resolve [id]      Mark a finding as resolved
   /vibecheck-scan              Full repo scan from within Claude Code
   /vibecheck-review            On-demand code review of current diff
@@ -82,8 +82,8 @@ function showProjectList(prune) {
     let pruned = [];
     for (const p of projects) {
       const projectExists = p.path && fs.existsSync(p.path);
-      const vgInstalled = projectExists && fs.existsSync(path.join(p.path, ".vibecheck"));
-      if (projectExists && vgInstalled) {
+      const vcInstalled = projectExists && fs.existsSync(path.join(p.path, ".vibecheck"));
+      if (projectExists && vcInstalled) {
         stillValid[p.id] = p;
       } else {
         pruned.push(p);
@@ -127,8 +127,8 @@ function showProjectList(prune) {
 
 function showStatus() {
   const cwd = process.cwd();
-  const vgDir = path.join(cwd, ".vibecheck");
-  if (!fs.existsSync(vgDir)) {
+  const vcDir = path.join(cwd, ".vibecheck");
+  if (!fs.existsSync(vcDir)) {
     console.log("VibeCheck not initialized in this project.\n  Run: npx vibecheck init");
     return;
   }
@@ -173,7 +173,7 @@ function printStatus(data) {
 
   console.log(`  — Usage (free) —`);
   console.log(`  Tasks with edits:  ${s.tasks_completed}`);
-  console.log(`  /vibecheck opened:        ${s.vg_invocations}  (engagement: ${(s.engagement_rate*100).toFixed(0)}%)\n`);
+  console.log(`  /vibecheck opened:        ${s.vc_invocations}  (engagement: ${(s.engagement_rate*100).toFixed(0)}%)\n`);
 
   if (Object.keys(sig).length > 0) {
     console.log("Signals:");

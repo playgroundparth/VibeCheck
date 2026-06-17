@@ -41,7 +41,7 @@ METRICS_VERSION = 1
 
 
 def metrics_path(cwd: Path) -> Path:
-    return store.vg_dir(cwd) / "metrics.json"
+    return store.vc_dir(cwd) / "metrics.json"
 
 
 def load_metrics(cwd: Path) -> Dict:
@@ -183,7 +183,7 @@ def get_summary(cwd: Path) -> Dict:
 
     # Read findings ground truth directly — totals drift when analyzer writes findings
     # without going through store.add_finding() (which calls record_finding_added).
-    findings_path = store.vg_dir(cwd) / "findings.json"
+    findings_path = store.vc_dir(cwd) / "findings.json"
     try:
         findings = store.read_json(findings_path, default=[])
         for f in findings:

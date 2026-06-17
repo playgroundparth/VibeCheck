@@ -55,7 +55,7 @@ def format_full_card(f, cwd):
         lines.append("**Fix** — paste to Claude:")
         lines.append(f"```\n{fix}\n```")
     lines.append("")
-    lines.append(f"`/vibecheck-resolve {fid}` · `/vibecheck-detail {fid}`")
+    lines.append(f"`/vibecheck resolve {fid}` · `/vibecheck {fid}`")
     return "\n".join(lines)
 
 def format_oneliner(f, cwd):
@@ -99,8 +99,8 @@ def _html_card(f, cwd):
     {why_html}
     {fix_html}
     <div class="actions">
-      <code>/vibecheck-resolve {_h(fid)}</code>
-      <code>/vibecheck-detail {_h(fid)}</code>
+      <code>/vibecheck resolve {_h(fid)}</code>
+      <code>/vibecheck {_h(fid)}</code>
     </div>
   </div>'''
 
@@ -172,12 +172,135 @@ def build_html(open_findings, resolved, cwd, project_name=""):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def print_help():
+    print("""🛡️  VibeCheck Commands
+
+  /vibecheck                 Show central dashboard, open findings, and metrics
+  /vibecheck <id>            View details for finding <id> (e.g. vc-001)
+  /vibecheck resolve <id>    Mark finding <id> as resolved
+  /vibecheck report          Open the interactive HTML dashboard/report
+  /vibecheck timeline        Print the append-only event log
+  /vibecheck <mode>          Set intensity mode: lite | full | pro | off
+  /vibecheck stage <stage>   Set project stage: mvp | growth | prod
+
+Other commands:
+  /vibecheck-review          Review the current git diff for security/reliability flaws
+  /vibecheck-scan            Run full repository scan (options: --deep, --full)
+  /vibecheck-skills          List active and proposed context skills
+  /vibecheck-skills promote  Elevate a proposed skill into active skills
+""")
+
+def display_timeline(cwd):
+    events = store.load_timeline(cwd)
+    if not events:
+        print("No events in timeline yet.")
+        return
+    print("🛡️  VibeCheck Timeline (recent first)\n")
+    for e in reversed(events[-30:]): # show last 30 events
+        ts = e.get("ts", "")[:19].replace("T", " ")
+        t = e.get("type", "unknown")
+        # Format event description
+        desc = ""
+        if t == "installed":
+            desc = f"VibeCheck installed (version {e.get('version', '0.1.0')})"
+        elif t == "task_completed":
+            n = e.get("file_count", 0)
+            desc = f"Task completed — {n} file{'s' if n != 1 else ''} changed"
+        elif t == "finding_added":
+            desc = f"Finding added: {e.get('finding_id', '')} ({e.get('severity', '')}) - {e.get('title', '')}"
+        elif t == "finding_resolved":
+            desc = f"Finding resolved: {e.get('finding_id', '')} - {e.get('note', '')}"
+        elif t == "decision_made":
+            desc = f"Architectural decision: {e.get('what', '')}"
+        elif t == "scan_run":
+            desc = f"Full scan executed — {e.get('findings_added', 0)} new findings"
+        elif t in ("model_changed", "mode_changed"):
+            if "mode" in e:
+                desc = f"Mode changed to: {e.get('mode', '')}"
+            else:
+                desc = f"Model changed to: {e.get('model', '')}"
+        else:
+            desc = f"Event: {t} {e}"
+        print(f"  [{ts}] {desc}")
+    print()
+
 def main():
+    import sys
     cwd = project.find_project_root(Path("."))
     if not cwd or not store.is_initialized(cwd):
         print("VibeCheck not initialized. Run: `npx github:playgroundparth/VibeCheck init`")
         return
 
+    arg_str = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    args = arg_str.split()
+
+    # 1. Parse Subcommands
+    if len(args) > 0:
+        cmd = args[0].lower()
+        if cmd == "help":
+            print_help()
+            return
+        elif cmd == "timeline":
+            display_timeline(cwd)
+            return
+        elif cmd == "report":
+            # Just trigger report HTML generation
+            pass
+        elif cmd == "resolve" and len(args) > 1:
+            fid = args[1]
+            note = " ".join(args[2:]) if len(args) > 2 else "Resolved manually via CLI"
+            if store.resolve_finding(cwd, fid, note):
+                print(f"✅ Finding {fid} marked as resolved.")
+            else:
+                print(f"❌ Failed to resolve finding {fid}.")
+            return
+        elif cmd == "stage" and len(args) > 1:
+            stage = args[1].lower()
+            if stage not in ("mvp", "growth", "prod"):
+                print("❌ Invalid stage. Choose from: mvp, growth, prod")
+                return
+            store.save_config(cwd, {"project_stage": stage})
+            # Also update memory.json
+            memory = store.load_memory(cwd)
+            if "project" not in memory: memory["project"] = {}
+            memory["project"]["stage"] = stage
+            store.write_json(store.memory_path(cwd), memory)
+            print(f"✅ Project stage set to: {stage}")
+            return
+        elif cmd in ("lite", "full", "pro", "off"):
+            store.save_config(cwd, {"mode": cmd})
+            model_info = store.get_model_info(cwd)
+            print(f"✅ VibeCheck mode set to: {cmd.upper()}")
+            print(f"🤖 Auto-selected model: {model_info['label']} ({model_info['id']})")
+            return
+        elif cmd.startswith("vc-") or cmd.startswith("vg-"):
+            # Detail view of a single finding
+            findings_path = cwd / ".vibecheck" / "findings.json"
+            if not findings_path.exists():
+                print("No findings yet.")
+                return
+            all_findings = json.loads(findings_path.read_text())
+            if isinstance(all_findings, dict): all_findings = all_findings.get("findings", [])
+            f = next((x for x in all_findings if x.get("id") == cmd), None)
+            if not f:
+                print(f"Finding {cmd} not found.")
+                return
+            icon = {"CRITICAL":"🔴","PITFALL":"⚡","HYGIENE":"🧹","GOOD_TO_HAVE":"💡"}.get(f.get("severity",""), "•")
+            print(f"{f['id']} {icon} {f.get('severity','')} — {f.get('title','')}")
+            if f.get("file"): print(f"File: {f['file']}")
+            print()
+            if f.get("why"): print(f"Why it matters:\n{f['why']}\n")
+            if f.get("details"): print(f"Detail:\n{f['details']}\n")
+            if f.get("fix_prompt"): print(f"Fix — paste to Claude:\n{f['fix_prompt']}\n")
+            print(f"Status: {f.get('status','open')} · Source: {f.get('source','')} · Detected: {f.get('detected_at','')[:19]}")
+            print(f"\n`/vibecheck resolve {cmd}`")
+            return
+        else:
+            print(f"Unknown subcommand or finding: '{cmd}'")
+            print("Type `/vibecheck help` to see available commands.")
+            return
+
+    # 2. Main Dashboard (empty arguments or 'report')
     findings_path = cwd / ".vibecheck" / "findings.json"
     if not findings_path.exists():
         print("No findings yet. Try `/vibecheck-scan` to run a full scan.")
@@ -190,24 +313,35 @@ def main():
     open_findings = [f for f in all_findings if f.get("status", "open") not in ("resolved", "dismissed")]
     resolved      = [f for f in all_findings if f.get("status") == "resolved"]
 
+    # Generate HTML report
+    try:
+        cfg = json.loads((cwd / ".vibecheck" / "config.json").read_text())
+        project_name = cfg.get("project_name", "")
+        mode = cfg.get("mode", "full")
+        model_info = store.get_model_info(cwd)
+    except Exception:
+        project_name = ""
+        mode = "full"
+        model_info = {"label": "Claude Sonnet", "id": "claude-sonnet-4-6"}
+
+    html_out = build_html(open_findings, resolved, cwd, project_name)
+    (cwd / ".vibecheck" / "report.html").write_text(html_out)
+
+    if arg_str == "report":
+        print("✅ HTML report updated.")
+        print("Full report with fix prompts → open the VibeCheck preview panel")
+        return
+
+    # ── Inline chat output ────────────────────────────────────────────────────
+    print(f"🛡️  VibeCheck: Active ({mode} mode)")
+    print(f"🤖 Model: {model_info['label']} (auto-selected)\n")
+
     if not open_findings:
         msg = "✅ No open findings."
         if resolved:
             msg += f" ({len(resolved)} previously resolved)"
         print(msg)
         return
-
-    # Always write the HTML report (serves via the vibecheck-report preview server)
-    try:
-        cfg = json.loads((cwd / ".vibecheck" / "config.json").read_text())
-        project_name = cfg.get("project_name", "")
-    except Exception:
-        project_name = ""
-
-    html_out = build_html(open_findings, resolved, cwd, project_name)
-    (cwd / ".vibecheck" / "report.html").write_text(html_out)
-
-    # ── Inline chat output ────────────────────────────────────────────────────
 
     # CRITICAL: full verbose cards
     criticals = [f for f in open_findings if f.get("severity") == "CRITICAL"]

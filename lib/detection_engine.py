@@ -636,7 +636,7 @@ def format_for_injection(evidence: List[Dict], next_finding_id: int, tier: str =
         return (
             f"[VibeCheck Detection] No issues detected (capability tier: {tier}). "
             f"Quick sanity check: confirm no hardcoded secrets, no unverified webhook bodies. "
-            f"Next finding ID: vg-{next_finding_id:03d}."
+            f"Next finding ID: vc-{next_finding_id:03d}."
         )
 
     lines = [f"[VibeCheck Detection] Found {len(evidence)} evidence item(s) (tier: {tier}):"]
@@ -665,15 +665,15 @@ def format_for_injection(evidence: List[Dict], next_finding_id: int, tier: str =
 
         if conf == "high":
             lines.append(
-                f"  → {severity} (vg-{current_id:03d}) — write finding unless clear mitigation in code"
+                f"  → {severity} (vc-{current_id:03d}) — write finding unless clear mitigation in code"
             )
         elif conf == "medium":
             lines.append(
-                f"  → {severity} (vg-{current_id:03d}) if confirmed by reading the cited file"
+                f"  → {severity} (vc-{current_id:03d}) if confirmed by reading the cited file"
             )
         else:
             lines.append(
-                f"  → {severity} (vg-{current_id:03d}) only if code clearly demonstrates the problem"
+                f"  → {severity} (vc-{current_id:03d}) only if code clearly demonstrates the problem"
             )
         lines.append("")
         current_id += 1

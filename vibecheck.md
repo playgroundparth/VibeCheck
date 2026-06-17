@@ -4,11 +4,11 @@ VibeCheck is active in this project. It runs security analysis inline at the end
 
 ## Commands
 
-- `/vibecheck` — show open findings with fix prompts
-- `/vibecheck-detail <id>` — full detail on one finding
-- `/vibecheck-resolve <id>` — mark a finding as resolved
-- `/vibecheck-scan` — one-time scan of the full codebase
-- `/vibecheck-status` — health metrics
+- `/vibecheck` — Central console (dashboard, details, resolve, report, timeline, stage/mode configs)
+- `/vibecheck-scan` — One-time repository scan
+- `/vibecheck-review` — Review current git diff for flaws
+- `/vibecheck-skills` — List and promote integration context skills
+- `/vibecheck-help` — Quick reference guide
 
 ## Findings are in `.vibecheck/findings.json`
 

@@ -12,7 +12,7 @@ import readline from "readline";
 import crypto from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VIBEGUARD_ROOT = path.join(__dirname, "..");
+const VIBECHECK_ROOT = path.join(__dirname, "..");
 
 /**
  * Find the main repo root from any directory, including git worktrees.
@@ -83,20 +83,20 @@ async function main() {
   console.log(`✓ Project ID: ${projectId} (${projectName})`);
 
   // Create .vibecheck/
-  const vgDir = path.join(cwd, ".vibecheck");
+  const vcDir = path.join(cwd, ".vibecheck");
   ["", "patterns", "proposed_skills"].forEach((sub) =>
-    fs.mkdirSync(path.join(vgDir, sub), { recursive: true })
+    fs.mkdirSync(path.join(vcDir, sub), { recursive: true })
   );
   console.log("✓ Created .vibecheck/");
 
   // Initialize JSON data files
   const now = new Date().toISOString();
 
-  fs.writeFileSync(path.join(vgDir, "project_id.txt"), projectId);
+  fs.writeFileSync(path.join(vcDir, "project_id.txt"), projectId);
 
-  writeIfMissing(path.join(vgDir, "findings.json"), "[]");
+  writeIfMissing(path.join(vcDir, "findings.json"), "[]");
   writeIfMissing(
-    path.join(vgDir, "timeline.json"),
+    path.join(vcDir, "timeline.json"),
     JSON.stringify([{
       ts: now, type: "installed", version: "0.1.0", project_id: projectId,
       project_name: projectName, telemetry, global_registry: globalRegistry,
@@ -104,7 +104,7 @@ async function main() {
     }], null, 2)
   );
   writeIfMissing(
-    path.join(vgDir, "memory.json"),
+    path.join(vcDir, "memory.json"),
     JSON.stringify({
       project: {name: projectName, id: projectId},
       stack: [], features: [], decisions: [], known_risks: [],
@@ -112,7 +112,7 @@ async function main() {
     }, null, 2)
   );
   writeIfMissing(
-    path.join(vgDir, "summary.json"),
+    path.join(vcDir, "summary.json"),
     JSON.stringify({
       counts: { CRITICAL: 0, PITFALL: 0, HYGIENE: 0, GOOD_TO_HAVE: 0 },
       total_open: 0, total_all: 0, updated_at: now,
@@ -123,124 +123,154 @@ async function main() {
   const config = {
     project_id: projectId,
     project_name: projectName,
-    model: "haiku",
-    model_id: "claude-haiku-4-5-20251001",
+    mode: "full",
     telemetry,
     global_registry: globalRegistry,
     integrations,
     version: "0.1.0",
     installed_at: now,
   };
-  fs.writeFileSync(path.join(vgDir, "config.json"), JSON.stringify(config, null, 2));
+  fs.writeFileSync(path.join(vcDir, "config.json"), JSON.stringify(config, null, 2));
   console.log("✓ Created .vibecheck/config.json");
 
-  // Set up .claude/
-  const claudeDir = path.join(cwd, ".claude");
-  ["agents", "skills", "hooks", "hooks/lib"].forEach((sub) =>
-    fs.mkdirSync(path.join(claudeDir, sub), { recursive: true })
-  );
-
-  // Copy lib files
   const libFiles = [
     "store.py", "static_checks.py", "patterns.py", "guardrails.py",
     "project.py", "project_map.py", "health_report.py", "ignore.py",
-    "metrics.py", "context_extractor.py", "vg_display.py", "telemetry.py",
+    "metrics.py", "context_extractor.py", "vc_display.py", "telemetry.py",
     "graphify_query.py", "detection_engine.py", "capability.py", "async_detection.py",
   ];
-  libFiles.forEach((f) => {
-    copyFile(
-      path.join(VIBEGUARD_ROOT, "lib", f),
-      path.join(claudeDir, "hooks", "lib", f)
-    );
-  });
-  console.log("✓ Installed lib → .claude/hooks/lib/");
-
-  // Copy integration skill templates (used by post_tool.py to auto-install skills)
   const skillTemplates = [
     "stripe.md", "supabase.md", "clerk.md", "prisma.md", "openai.md", "vercel.md",
   ];
-  const skillTemplatesDir = path.join(claudeDir, "hooks", "lib", "skills");
-  fs.mkdirSync(skillTemplatesDir, { recursive: true });
-  skillTemplates.forEach((f) => {
-    copyFile(path.join(VIBEGUARD_ROOT, "lib", "skills", f), path.join(skillTemplatesDir, f));
-  });
-
-  // Copy framework files (loaded by Claude during inline VibeCheck when detected)
   const frameworkFiles = [
     "event-driven.md", "irreversible-action.md", "billing-pricing.md",
     "async-scheduled.md", "concurrent-state.md", "cross-cutting-state.md",
     "external-service.md", "new-dependency.md", "ugc.md", "user-input.md",
   ];
-  const frameworksDir = path.join(claudeDir, "hooks", "lib", "frameworks");
-  fs.mkdirSync(frameworksDir, { recursive: true });
-  frameworkFiles.forEach((f) => {
-    copyFile(path.join(VIBEGUARD_ROOT, "frameworks", f), path.join(frameworksDir, f));
-  });
-  console.log("✓ Installed frameworks → .claude/hooks/lib/frameworks/");
-
-  // Copy agents
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "agents", "scanner.md"),
-    path.join(claudeDir, "agents", "vibecheck-scanner.md")
-  );
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "agents", "scanner-deep.md"),
-    path.join(claudeDir, "agents", "vibecheck-scanner-deep.md")
-  );
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "agents", "scanner-opus.md"),
-    path.join(claudeDir, "agents", "vibecheck-scanner-opus.md")
-  );
-  console.log("✓ Installed agents → .claude/agents/");
-
-  // Copy skill (context for Claude about VibeCheck)
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "vibecheck.md"),
-    path.join(claudeDir, "skills", "vibecheck.md")
-  );
-  console.log("✓ Installed skill → .claude/skills/vibecheck.md");
-
-  // Copy slash commands
-  const commandsDir = path.join(claudeDir, "commands");
-  fs.mkdirSync(commandsDir, { recursive: true });
   const commandFiles = [
-    "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-    "vibecheck-scan.md", "vibecheck-review.md", "vibecheck-stage.md",
-    "vibecheck-status.md", "vibecheck-report.md", "vibecheck-timeline.md",
-    "vibecheck-skills.md", "vibecheck-promote-skill.md", "vibecheck-model.md",
+    "vibecheck.md", "vibecheck-scan.md", "vibecheck-review.md",
+    "vibecheck-skills.md", "vibecheck-help.md",
   ];
-  for (const f of commandFiles) {
-    copyFile(path.join(VIBEGUARD_ROOT, "commands", f), path.join(commandsDir, f));
-  }
-  console.log("✓ Installed 12 commands → .claude/commands/");
 
-  // Symlink commands into any existing worktrees so Claude Code's Code tab can see them
-  wireCommandsIntoWorktrees(claudeDir);
+  const appConfigs = [
+    { name: "Claude Code", dir: ".claude", requiresPrompts: false },
+    { name: "Antigravity/Gemini", dir: ".agents", requiresPrompts: false },
+    { name: "Codex", dir: ".codex", requiresPrompts: true },
+  ];
 
-  // Copy hooks
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "hooks", "stop.py"),
-    path.join(claudeDir, "hooks", "vibecheck_stop.py")
-  );
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "hooks", "session_start.py"),
-    path.join(claudeDir, "hooks", "vibecheck_session_start.py")
-  );
-  copyFile(
-    path.join(VIBEGUARD_ROOT, "hooks", "post_tool.py"),
-    path.join(claudeDir, "hooks", "vibecheck_post_tool.py")
-  );
-  ["vibecheck_stop.py", "vibecheck_session_start.py", "vibecheck_post_tool.py"].forEach((f) =>
-    fs.chmodSync(path.join(claudeDir, "hooks", f), 0o755)
-  );
-  console.log("✓ Installed hooks → .claude/hooks/");
+  appConfigs.forEach((app) => {
+    const appDir = path.join(cwd, app.dir);
+    const subdirs = ["agents", "skills", "hooks", "hooks/lib", "commands"];
+    if (app.requiresPrompts) {
+      subdirs.push("prompts");
+    }
+    subdirs.forEach((sub) =>
+      fs.mkdirSync(path.join(appDir, sub), { recursive: true })
+    );
 
-  // Wire hooks into settings.json
-  wireHooks(claudeDir);
-  console.log("✓ Registered hooks in .claude/settings.json");
+    // Copy lib files
+    libFiles.forEach((f) => {
+      copyFile(
+        path.join(VIBECHECK_ROOT, "lib", f),
+        path.join(appDir, "hooks", "lib", f),
+        ".claude", app.dir
+      );
+    });
 
-  // Wire preview server for HTML report into .claude/launch.json
-  wireLaunchJson(claudeDir);
+    // Copy integration skill templates
+    const skillTemplatesDir = path.join(appDir, "hooks", "lib", "skills");
+    fs.mkdirSync(skillTemplatesDir, { recursive: true });
+    skillTemplates.forEach((f) => {
+      copyFile(path.join(VIBECHECK_ROOT, "lib", "skills", f), path.join(skillTemplatesDir, f), ".claude", app.dir);
+    });
+
+    // Copy framework files
+    const frameworksDir = path.join(appDir, "hooks", "lib", "frameworks");
+    fs.mkdirSync(frameworksDir, { recursive: true });
+    frameworkFiles.forEach((f) => {
+      copyFile(path.join(VIBECHECK_ROOT, "frameworks", f), path.join(frameworksDir, f), ".claude", app.dir);
+    });
+
+    // Copy agents
+    copyFile(
+      path.join(VIBECHECK_ROOT, "agents", "scanner.md"),
+      path.join(appDir, "agents", "vibecheck-scanner.md"),
+      ".claude", app.dir
+    );
+    copyFile(
+      path.join(VIBECHECK_ROOT, "agents", "scanner-deep.md"),
+      path.join(appDir, "agents", "vibecheck-scanner-deep.md"),
+      ".claude", app.dir
+    );
+    copyFile(
+      path.join(VIBECHECK_ROOT, "agents", "scanner-opus.md"),
+      path.join(appDir, "agents", "vibecheck-scanner-opus.md"),
+      ".claude", app.dir
+    );
+
+    if (app.requiresPrompts) {
+      // Copy to prompts/ too for Codex
+      copyFile(
+        path.join(VIBECHECK_ROOT, "agents", "scanner.md"),
+        path.join(appDir, "prompts", "vibecheck-scanner.md"),
+        ".claude", app.dir
+      );
+      copyFile(
+        path.join(VIBECHECK_ROOT, "agents", "scanner-deep.md"),
+        path.join(appDir, "prompts", "vibecheck-scanner-deep.md"),
+        ".claude", app.dir
+      );
+      copyFile(
+        path.join(VIBECHECK_ROOT, "agents", "scanner-opus.md"),
+        path.join(appDir, "prompts", "vibecheck-scanner-opus.md"),
+        ".claude", app.dir
+      );
+    }
+
+    // Copy skill
+    copyFile(
+      path.join(VIBECHECK_ROOT, "vibecheck.md"),
+      path.join(appDir, "skills", "vibecheck.md"),
+      ".claude", app.dir
+    );
+
+    // Copy slash commands
+    const commandsDir = path.join(appDir, "commands");
+    for (const f of commandFiles) {
+      copyFile(path.join(VIBECHECK_ROOT, "commands", f), path.join(commandsDir, f), ".claude", app.dir);
+    }
+
+    // Copy hooks
+    copyFile(
+      path.join(VIBECHECK_ROOT, "hooks", "stop.py"),
+      path.join(appDir, "hooks", "vibecheck_stop.py"),
+      ".claude", app.dir
+    );
+    copyFile(
+      path.join(VIBECHECK_ROOT, "hooks", "session_start.py"),
+      path.join(appDir, "hooks", "vibecheck_session_start.py"),
+      ".claude", app.dir
+    );
+    copyFile(
+      path.join(VIBECHECK_ROOT, "hooks", "post_tool.py"),
+      path.join(appDir, "hooks", "vibecheck_post_tool.py"),
+      ".claude", app.dir
+    );
+    ["vibecheck_stop.py", "vibecheck_session_start.py", "vibecheck_post_tool.py"].forEach((f) =>
+      fs.chmodSync(path.join(appDir, "hooks", f), 0o755)
+    );
+
+    // Symlink commands into worktrees
+    wireCommandsIntoWorktrees(appDir);
+
+    // Wire preview server for HTML report
+    wireLaunchJson(appDir);
+
+    console.log(`✓ Installed files in workspace for ${app.name} (${app.dir}/)`);
+  });
+
+  // Wire hooks globally
+  wireHooks();
 
   // Update CLAUDE.md
   addToClaudeMd(cwd, hasClaudeMd);
@@ -250,8 +280,8 @@ async function main() {
   updateGitignore(cwd);
 
   // .vibecheck-ignore (default content if missing)
-  const vgIgnorePath = path.join(cwd, ".vibecheck-ignore");
-  if (!fs.existsSync(vgIgnorePath)) {
+  const vcIgnorePath = path.join(cwd, ".vibecheck-ignore");
+  if (!fs.existsSync(vcIgnorePath)) {
     const defaultContent = `# VibeCheck ignore patterns
 # Like .gitignore — patterns to skip during analysis.
 # Defaults are applied automatically (node_modules/, dist/, .git/, etc).
@@ -264,7 +294,7 @@ async function main() {
 # !docs/architecture.md    # but DO analyze this specific file (negation)
 # legacy/                  # skip legacy code we're not actively touching
 `;
-    fs.writeFileSync(vgIgnorePath, defaultContent);
+    fs.writeFileSync(vcIgnorePath, defaultContent);
     console.log("✓ Created .vibecheck-ignore (customize what to skip)");
   }
 
@@ -282,7 +312,7 @@ async function main() {
   }
 
   // Seed artifact groups — lifecycle relationships between files
-  seedArtifactGroups(cwd, vgDir);
+  seedArtifactGroups(cwd, vcDir);
 
   // Register globally if opted in
   if (globalRegistry) {
@@ -309,13 +339,13 @@ async function main() {
 After restarting, type /vibecheck in the chat to confirm it's working.
 
 Commands (type / to browse):
-  /vibecheck                   View all findings with fix prompts
+  /vibecheck                   View open findings dashboard
   /vibecheck [id]              Full detail on one finding
-  /vibecheck-resolve [id]      Mark a finding fixed
-  /vibecheck-scan              Full repo scan (existing codebases)
+  /vibecheck resolve [id]      Mark a finding as resolved
+  /vibecheck-scan              Full repo scan (options: --deep, --pro)
   /vibecheck-review            On-demand code review of current diff
-  /vibecheck-stage [stage]     Set project stage (mvp|growth|prod)
-  /vibecheck-model [model]     Switch analyzer model (haiku/sonnet)
+  /vibecheck-skills            Manage integration context skills
+  /vibecheck-help              Quick reference help guide
 
 After each task Claude finishes, you'll see a VibeCheck footer automatically.
 .vibecheck/ is in .gitignore. Findings stay local.
@@ -430,8 +460,8 @@ function computeProjectName(cwd) {
   return path.basename(cwd);
 }
 
-function seedArtifactGroups(cwd, vgDir) {
-  const mapPath = path.join(vgDir, "project_map.json");
+function seedArtifactGroups(cwd, vcDir) {
+  const mapPath = path.join(vcDir, "project_map.json");
   let existing = {};
   try { existing = JSON.parse(fs.readFileSync(mapPath, "utf8")); } catch {}
 
@@ -539,107 +569,200 @@ function seedArtifactGroups(cwd, vgDir) {
   } catch {}
 }
 
-function wireCommandsIntoWorktrees(claudeDir) {
-  // Claude Code's "Code tab" opens each branch in a git worktree at
-  // .claude/worktrees/<name>/. It doesn't inherit the main .claude/commands/,
-  // so commands are invisible there unless we link them in.
-  const worktreesBase = path.join(claudeDir, "worktrees");
+function wireCommandsIntoWorktrees(appDir) {
+  const appBaseName = path.basename(appDir); // e.g. ".claude", ".agents", ".codex"
+  const worktreesBase = path.join(appDir, "worktrees");
   if (!fs.existsSync(worktreesBase)) return;
   const worktrees = fs.readdirSync(worktreesBase, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
   let linked = 0;
   for (const wt of worktrees) {
-    const wtClaudeDir = path.join(worktreesBase, wt, ".claude");
-    if (!fs.existsSync(wtClaudeDir)) continue;
-    const target = path.join(wtClaudeDir, "commands");
+    const wtAppDir = path.join(worktreesBase, wt, appBaseName);
+    if (!fs.existsSync(wtAppDir)) continue;
+    const target = path.join(wtAppDir, "commands");
     if (fs.existsSync(target)) continue; // already linked or has own commands dir
     try {
       fs.symlinkSync("../../../commands", target);
       linked++;
     } catch {}
   }
-  if (linked > 0) console.log(`✓ Linked commands into ${linked} existing worktree(s)`);
+  if (linked > 0) console.log(`✓ Linked commands into ${linked} existing worktree(s) in ${appBaseName}`);
 }
 
-function wireHooks(claudeDir) {
-  // Project-level settings: only env, no hooks.
-  // Hooks go in ~/.claude/settings.json (user-level) so they fire from worktrees too.
-  const settingsPath = path.join(claudeDir, "settings.json");
-  let settings = {};
-  if (fs.existsSync(settingsPath)) {
-    try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); }
-    catch { settings = {}; }
-  }
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+function wireHooks() {
+  const rootExpr = `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" && ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)`;
 
-  // Wire hooks into ~/.claude/settings.json
-  // NOTE: Hooks must live in the user-level settings file to fire from git worktrees.
-  // A project-level .claude/settings.json is ignored by Claude Code in worktrees because
-  // the worktree checkout doesn't have .claude/ — only the main worktree does.
-  // The hooks are self-guarding: they check for .claude/hooks/vibecheck_*.py at the
-  // git root before doing anything, so they silently no-op in non-VibeCheck projects.
   console.log();
-  console.log("⚠️  VibeCheck writes hooks to ~/.claude/settings.json (your user-level config).");
-  console.log("   This is required for hooks to fire in git worktrees.");
+  console.log("⚠️  VibeCheck writes hooks to global user-level configs (e.g. ~/.claude/settings.json).");
+  console.log("   This is required for hooks to fire in git worktrees and desktop apps.");
   console.log("   The hooks check for VibeCheck before running — they no-op in other projects.");
-  console.log("   To remove them later: npx vibecheck uninstall  (from this project)");
   console.log();
-  const userSettingsPath = path.join(os.homedir(), ".claude", "settings.json");
-  let userSettings = {};
-  if (fs.existsSync(userSettingsPath)) {
-    try { userSettings = JSON.parse(fs.readFileSync(userSettingsPath, "utf8")); }
-    catch { userSettings = {}; }
+
+  // 1. Claude
+  try {
+    const claudeSettingsPath = path.join(os.homedir(), ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(claudeSettingsPath), { recursive: true });
+    let settings = {};
+    if (fs.existsSync(claudeSettingsPath)) {
+      try { settings = JSON.parse(fs.readFileSync(claudeSettingsPath, "utf8")); } catch { settings = {}; }
+    }
+    if (!settings.hooks) settings.hooks = {};
+
+    const stopHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_stop.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_stop.py"`,
+        async: false, timeout: 60,
+      }],
+    };
+    if (!settings.hooks.Stop) settings.hooks.Stop = [];
+    if (!settings.hooks.Stop.some((h) => JSON.stringify(h).includes("vibecheck_stop"))) {
+      settings.hooks.Stop.push(stopHook);
+    }
+
+    const startHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_session_start.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_session_start.py"`,
+        async: false, timeout: 35,
+      }],
+    };
+    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+    if (!settings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibecheck_session_start"))) {
+      settings.hooks.SessionStart.push(startHook);
+    }
+
+    const postToolHook = {
+      matcher: "Read|Write|Edit|MultiEdit",
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_post_tool.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_post_tool.py"`,
+        async: true,
+      }],
+    };
+    if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
+    if (!settings.hooks.PostToolUse.some((h) => JSON.stringify(h).includes("vibecheck_post_tool"))) {
+      settings.hooks.PostToolUse.push(postToolHook);
+    }
+
+    fs.writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2));
+    console.log("✓ Registered hooks in ~/.claude/settings.json");
+  } catch (e) {
+    console.log("⚠️  Could not wire hooks in ~/.claude/settings.json:", e.message);
   }
-  if (!userSettings.hooks) userSettings.hooks = {};
 
-  const rootExpr = `ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)`;
+  // 2. Antigravity/Gemini
+  try {
+    const geminiSettingsPath = path.join(os.homedir(), ".gemini", "settings.json");
+    fs.mkdirSync(path.dirname(geminiSettingsPath), { recursive: true });
+    let settings = {};
+    if (fs.existsSync(geminiSettingsPath)) {
+      try { settings = JSON.parse(fs.readFileSync(geminiSettingsPath, "utf8")); } catch { settings = {}; }
+    }
+    if (!settings.hooks) settings.hooks = {};
 
-  const stopHook = {
-    hooks: [{
-      type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_stop.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_stop.py"`,
-      async: false, timeout: 60,
-    }],
-  };
-  if (!userSettings.hooks.Stop) userSettings.hooks.Stop = [];
-  if (!userSettings.hooks.Stop.some((h) => JSON.stringify(h).includes("vibecheck_stop"))) {
-    userSettings.hooks.Stop.push(stopHook);
+    const stopHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.agents/hooks/vibecheck_stop.py" ] && PYTHONPATH="$ROOT/.agents/hooks/lib" python3 "$ROOT/.agents/hooks/vibecheck_stop.py"`,
+        async: false, timeout: 60,
+      }],
+    };
+    if (!settings.hooks.SessionEnd) settings.hooks.SessionEnd = [];
+    if (!settings.hooks.SessionEnd.some((h) => JSON.stringify(h).includes("vibecheck_stop"))) {
+      settings.hooks.SessionEnd.push(stopHook);
+    }
+
+    const startHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.agents/hooks/vibecheck_session_start.py" ] && PYTHONPATH="$ROOT/.agents/hooks/lib" python3 "$ROOT/.agents/hooks/vibecheck_session_start.py"`,
+        async: false, timeout: 35,
+      }],
+    };
+    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+    if (!settings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibecheck_session_start"))) {
+      settings.hooks.SessionStart.push(startHook);
+    }
+
+    const postToolHook = {
+      matcher: "view_file|write_to_file|replace_file_content|multi_replace_file_content",
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.agents/hooks/vibecheck_post_tool.py" ] && PYTHONPATH="$ROOT/.agents/hooks/lib" python3 "$ROOT/.agents/hooks/vibecheck_post_tool.py"`,
+        async: true,
+      }],
+    };
+    if (!settings.hooks.AfterTool) settings.hooks.AfterTool = [];
+    if (!settings.hooks.AfterTool.some((h) => JSON.stringify(h).includes("vibecheck_post_tool"))) {
+      settings.hooks.AfterTool.push(postToolHook);
+    }
+
+    fs.writeFileSync(geminiSettingsPath, JSON.stringify(settings, null, 2));
+    console.log("✓ Registered hooks in ~/.gemini/settings.json");
+  } catch (e) {
+    console.log("⚠️  Could not wire hooks in ~/.gemini/settings.json:", e.message);
   }
 
-  const startHook = {
-    hooks: [{
-      type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_session_start.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_session_start.py"`,
-      async: false, timeout: 35,
-    }],
-  };
-  if (!userSettings.hooks.SessionStart) userSettings.hooks.SessionStart = [];
-  if (!userSettings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibecheck_session_start"))) {
-    userSettings.hooks.SessionStart.push(startHook);
-  }
+  // 3. Codex
+  try {
+    const codexSettingsPath = path.join(os.homedir(), ".codex", "hooks.json");
+    fs.mkdirSync(path.dirname(codexSettingsPath), { recursive: true });
+    let settings = {};
+    if (fs.existsSync(codexSettingsPath)) {
+      try { settings = JSON.parse(fs.readFileSync(codexSettingsPath, "utf8")); } catch { settings = {}; }
+    }
+    if (!settings.hooks) settings.hooks = {};
 
-  const postToolHook = {
-    matcher: "Read|Write|Edit|MultiEdit",
-    hooks: [{
-      type: "command",
-      command: `${rootExpr} && [ -f "$ROOT/.claude/hooks/vibecheck_post_tool.py" ] && PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/vibecheck_post_tool.py"`,
-      async: true,
-    }],
-  };
-  if (!userSettings.hooks.PostToolUse) userSettings.hooks.PostToolUse = [];
-  if (!userSettings.hooks.PostToolUse.some((h) => JSON.stringify(h).includes("vibecheck_post_tool"))) {
-    userSettings.hooks.PostToolUse.push(postToolHook);
-  }
+    const stopHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.codex/hooks/vibecheck_stop.py" ] && PYTHONPATH="$ROOT/.codex/hooks/lib" python3 "$ROOT/.codex/hooks/vibecheck_stop.py"`,
+        async: false, timeout: 60,
+      }],
+    };
+    if (!settings.hooks.Stop) settings.hooks.Stop = [];
+    if (!settings.hooks.Stop.some((h) => JSON.stringify(h).includes("vibecheck_stop"))) {
+      settings.hooks.Stop.push(stopHook);
+    }
 
-  fs.writeFileSync(userSettingsPath, JSON.stringify(userSettings, null, 2));
-  console.log("✓ Registered hooks in ~/.claude/settings.json (global, so worktrees work too)");
+    const startHook = {
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.codex/hooks/vibecheck_session_start.py" ] && PYTHONPATH="$ROOT/.codex/hooks/lib" python3 "$ROOT/.codex/hooks/vibecheck_session_start.py"`,
+        async: false, timeout: 35,
+      }],
+    };
+    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+    if (!settings.hooks.SessionStart.some((h) => JSON.stringify(h).includes("vibecheck_session_start"))) {
+      settings.hooks.SessionStart.push(startHook);
+    }
+
+    const postToolHook = {
+      matcher: "apply_patch|write_file|read_file",
+      hooks: [{
+        type: "command",
+        command: `${rootExpr} && [ -f "$ROOT/.codex/hooks/vibecheck_post_tool.py" ] && PYTHONPATH="$ROOT/.codex/hooks/lib" python3 "$ROOT/.codex/hooks/vibecheck_post_tool.py"`,
+        async: true,
+      }],
+    };
+    if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
+    if (!settings.hooks.PostToolUse.some((h) => JSON.stringify(h).includes("vibecheck_post_tool"))) {
+      settings.hooks.PostToolUse.push(postToolHook);
+    }
+
+    fs.writeFileSync(codexSettingsPath, JSON.stringify(settings, null, 2));
+    console.log("✓ Registered hooks in ~/.codex/hooks.json");
+  } catch (e) {
+    console.log("⚠️  Could not wire hooks in ~/.codex/hooks.json:", e.message);
+  }
 }
 
 function addToClaudeMd(cwd, exists) {
   const claudeMdPath = path.join(cwd, "CLAUDE.md");
   // Read the canonical template from the package — no fallback, template must ship with the package
-  const templatePath = path.join(VIBEGUARD_ROOT, "CLAUDE.template.md");
+  const templatePath = path.join(VIBECHECK_ROOT, "CLAUDE.template.md");
   if (!fs.existsSync(templatePath)) {
     console.error("❌ CLAUDE.template.md not found in package. Installation may be incomplete.");
     process.exit(1);
@@ -648,7 +771,7 @@ function addToClaudeMd(cwd, exists) {
 
   if (exists) {
     const current = fs.readFileSync(claudeMdPath, "utf8");
-    if (!current.includes("VibeCheck")) fs.appendFileSync(claudeMdPath, block);
+    if (!current.includes("VibeCheck (active)")) fs.appendFileSync(claudeMdPath, block);
   } else {
     fs.writeFileSync(claudeMdPath, `# Project\n${block}`);
   }
@@ -664,7 +787,7 @@ function addToClaudeMd(cwd, exists) {
   const worktreesBase = path.join(cwd, ".claude", "worktrees");
   if (fs.existsSync(worktreesBase)) {
     // Extract everything from the Engineering Standards section onward (includes VibeCheck)
-    const templatePath = path.join(VIBEGUARD_ROOT, "CLAUDE.template.md");
+    const templatePath = path.join(VIBECHECK_ROOT, "CLAUDE.template.md");
     if (!fs.existsSync(templatePath)) return;
     const templateLines = fs.readFileSync(templatePath, "utf8").split("\n");
     // Prefer starting at Engineering Standards (if present), fall back to VibeCheck section
@@ -681,7 +804,7 @@ function addToClaudeMd(cwd, exists) {
       const wtClaudeMd = path.join(worktreesBase, wt, "CLAUDE.md");
       if (!fs.existsSync(wtClaudeMd)) continue;
       const content = fs.readFileSync(wtClaudeMd, "utf8");
-      if (content.includes("VibeCheck")) continue; // already has it
+      if (content.includes("VibeCheck (active)")) continue; // already has it
       fs.appendFileSync(wtClaudeMd, vcBlock);
       // Commit to the worktree's branch so it survives future checkouts
       try {
@@ -733,9 +856,15 @@ function writeIfMissing(filePath, content) {
   if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, content);
 }
 
-function copyFile(src, dest) {
+function copyFile(src, dest, search, replace) {
   if (!fs.existsSync(src)) throw new Error(`Missing: ${src}`);
-  fs.copyFileSync(src, dest);
+  if (search && replace) {
+    let content = fs.readFileSync(src, "utf8");
+    content = content.split(search).join(replace);
+    fs.writeFileSync(dest, content);
+  } else {
+    fs.copyFileSync(src, dest);
+  }
 }
 
 function wireLaunchJson(claudeDir) {

@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 import store, guardrails, project, metrics, context_extractor
 
-DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
+DEBUG = os.environ.get("VIBECHECK_DEBUG") == "1"
 MAX_LOCK_WAIT_SECONDS = 30
 LOCK_CHECK_INTERVAL = 0.5
 
@@ -45,11 +45,11 @@ def main():
             store.log_event(cwd, {"type": "lock_force_released", "waited_seconds": waited})
 
     # Run guardrails post-analysis
-    snapshot_path = store.vg_dir(cwd) / "source_snapshot.json"
+    snapshot_path = store.vc_dir(cwd) / "source_snapshot.json"
     if snapshot_path.exists():
         try:
             snapshot = json.loads(snapshot_path.read_text())
-            findings_before_path = store.vg_dir(cwd) / "findings_before_analyzer.json"
+            findings_before_path = store.vc_dir(cwd) / "findings_before_analyzer.json"
             findings_before = []
             if findings_before_path.exists():
                 findings_before = json.loads(findings_before_path.read_text())
@@ -73,7 +73,7 @@ def main():
         context_lines.append(async_results_line)
 
     # Project context (auth, stack, known risks)
-    ctx_summary = context_extractor.summarize(store.vg_dir(cwd))
+    ctx_summary = context_extractor.summarize(store.vc_dir(cwd))
     if ctx_summary:
         context_lines.append(ctx_summary)
 
@@ -107,7 +107,7 @@ def sync_analyses_from_timeline(cwd):
         changed = False
 
         # Sync analyses_run from timeline
-        timeline_path = store.vg_dir(cwd) / "timeline.json"
+        timeline_path = store.vc_dir(cwd) / "timeline.json"
         if timeline_path.exists():
             timeline = json.loads(timeline_path.read_text())
             analysis_events = [e for e in timeline if e.get("type") == "analysis_run"]
@@ -130,7 +130,7 @@ def sync_analyses_from_timeline(cwd):
                 changed = True
 
         # Sync findings_created from findings.json
-        findings_path = store.vg_dir(cwd) / "findings.json"
+        findings_path = store.vc_dir(cwd) / "findings.json"
         if findings_path.exists():
             findings = json.loads(findings_path.read_text())
             actual_total = len(findings)
@@ -178,7 +178,7 @@ def sync_analyses_from_timeline(cwd):
                 "total_all": len(findings),
                 "updated_at": metrics.now_iso(),
             }
-            store.write_json(store.vg_dir(cwd) / "summary.json", summary)
+            store.write_json(store.vc_dir(cwd) / "summary.json", summary)
     except Exception:
         pass
 
@@ -189,7 +189,7 @@ def _surface_async_results(cwd: Path) -> str:
     Reads .vibecheck/async_results.json, returns a context line, then deletes the file.
     Discards results older than 24 hours (stale).
     """
-    async_results_path = store.vg_dir(cwd) / "async_results.json"
+    async_results_path = store.vc_dir(cwd) / "async_results.json"
     if not async_results_path.exists():
         return ""
     try:
@@ -251,7 +251,7 @@ def _surface_async_results(cwd: Path) -> str:
 
 def build_context_log_summary(cwd):
     """Inject the last N context_log entries so Claude has session continuity."""
-    log_path = store.vg_dir(cwd) / "context_log.jsonl"
+    log_path = store.vc_dir(cwd) / "context_log.jsonl"
     if not log_path.exists():
         return ""
     try:

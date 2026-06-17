@@ -47,9 +47,9 @@ function estimateCost(model, files) {
 
 async function main() {
   const cwd = process.cwd();
-  const vgDir = path.join(cwd, ".vibecheck");
+  const vcDir = path.join(cwd, ".vibecheck");
 
-  if (!fs.existsSync(vgDir)) {
+  if (!fs.existsSync(vcDir)) {
     console.error("❌ VibeCheck not initialized.\n   Run: npx github:playgroundparth/VibeCheck init");
     process.exit(1);
   }
@@ -121,10 +121,10 @@ Checks: auth, payments, database, routes, secrets,
   }
 
   console.log("\nStarting scan...");
-  await runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead);
+  await runWithSpinner(cwd, vcDir, model, modelKey, depthKey, filesToRead);
 }
 
-function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
+function runWithSpinner(cwd, vcDir, model, modelKey, depthKey, filesToRead) {
   return new Promise((resolve) => {
     const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     let i = 0;
@@ -197,7 +197,7 @@ function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
 
       // claude -p can exit non-zero even when the agent completed successfully.
       // Treat a written findings.json as the real success signal.
-      const findingsPath = path.join(vgDir, "findings.json");
+      const findingsPath = path.join(vcDir, "findings.json");
       const findingsWritten = fs.existsSync(findingsPath);
 
       if (code !== 0 && !findingsWritten) {
@@ -207,7 +207,7 @@ function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
       }
 
       // Count from findings.json directly (summary.json is updated by the stop hook, not the scanner)
-      const findings = readFindings(vgDir);
+      const findings = readFindings(vcDir);
       const open = findings.filter(f => f.status !== "resolved" && f.status !== "dismissed");
       const counts = {};
       for (const f of open) counts[f.severity] = (counts[f.severity] || 0) + 1;
@@ -219,7 +219,7 @@ function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
       const total    = open.length;
 
       // Record scan cost in metrics
-      recordScanMetric(vgDir, modelKey, filesToRead);
+      recordScanMetric(vcDir, modelKey, filesToRead);
 
       console.log("✅ Scan complete.\n");
       if (total > 0) {
@@ -238,9 +238,9 @@ function runWithSpinner(cwd, vgDir, model, modelKey, depthKey, filesToRead) {
   });
 }
 
-function recordScanMetric(vgDir, modelKey, filesRead) {
+function recordScanMetric(vcDir, modelKey, filesRead) {
   try {
-    const metricsPath = path.join(vgDir, "metrics.json");
+    const metricsPath = path.join(vcDir, "metrics.json");
     const AVG_TOKENS_PER_FILE = 2000;
     const OUTPUT_TOKENS = 2500;
     const INPUT_RATE = modelKey === "sonnet" ? 3.00 : 0.80;
@@ -250,7 +250,7 @@ function recordScanMetric(vgDir, modelKey, filesRead) {
 
     let m = {};
     try { m = JSON.parse(fs.readFileSync(metricsPath, "utf8")); } catch {}
-    if (!m.totals) m.totals = { analyses_run: 0, tokens_consumed: 0, cost_usd: 0.0, findings_created: 0, findings_resolved: 0, findings_dismissed: 0, vg_invocations: 0, tasks_completed: 0, sessions: 0, static_checks_run: 0 };
+    if (!m.totals) m.totals = { analyses_run: 0, tokens_consumed: 0, cost_usd: 0.0, findings_created: 0, findings_resolved: 0, findings_dismissed: 0, vc_invocations: 0, tasks_completed: 0, sessions: 0, static_checks_run: 0 };
     if (!m.by_day) m.by_day = {};
     if (!m.latencies) m.latencies = { analyzer_ms: [], static_check_ms: [], hook_overhead_ms: [] };
 
@@ -259,7 +259,7 @@ function recordScanMetric(vgDir, modelKey, filesRead) {
     m.totals.cost_usd = Math.round((m.totals.cost_usd + cost) * 10000) / 10000;
 
     const today = new Date().toISOString().slice(0, 10);
-    if (!m.by_day[today]) m.by_day[today] = { analyses: 0, static_runs: 0, tasks: 0, tokens: 0, cost: 0.0, findings_created: 0, resolved: 0, dismissed: 0, vg_invocations: 0 };
+    if (!m.by_day[today]) m.by_day[today] = { analyses: 0, static_runs: 0, tasks: 0, tokens: 0, cost: 0.0, findings_created: 0, resolved: 0, dismissed: 0, vc_invocations: 0 };
     m.by_day[today].analyses += 1;
     m.by_day[today].tokens += inputTokens;
     m.by_day[today].cost = Math.round((m.by_day[today].cost + cost) * 10000) / 10000;
@@ -311,17 +311,17 @@ function confirm(question) {
   });
 }
 
-function readConfig(vgDir) {
+function readConfig(vcDir) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(vgDir, "config.json"), "utf8"));
+    return JSON.parse(fs.readFileSync(path.join(vcDir, "config.json"), "utf8"));
   } catch {
     return { model: "haiku" };
   }
 }
 
-function readFindings(vgDir) {
+function readFindings(vcDir) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(vgDir, "findings.json"), "utf8"));
+    return JSON.parse(fs.readFileSync(path.join(vcDir, "findings.json"), "utf8"));
   } catch {
     return [];
   }

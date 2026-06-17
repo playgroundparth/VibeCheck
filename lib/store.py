@@ -29,35 +29,35 @@ STATUSES = {"open", "resolved", "snoozed"}
 
 # ─── Path helpers ─────────────────────────────────────────────────────────────
 
-def vg_dir(cwd: Path) -> Path:
+def vc_dir(cwd: Path) -> Path:
     return cwd / ".vibecheck"
 
 def findings_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "findings.json"
+    return vc_dir(cwd) / "findings.json"
 
 def timeline_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "timeline.json"
+    return vc_dir(cwd) / "timeline.json"
 
 def memory_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "memory.json"
+    return vc_dir(cwd) / "memory.json"
 
 def summary_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "summary.json"
+    return vc_dir(cwd) / "summary.json"
 
 def config_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "config.json"
+    return vc_dir(cwd) / "config.json"
 
 def patterns_dir(cwd: Path) -> Path:
-    return vg_dir(cwd) / "patterns"
+    return vc_dir(cwd) / "patterns"
 
 def lock_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "analysis.lock"
+    return vc_dir(cwd) / "analysis.lock"
 
 def learned_rules_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "learned_rules.md"
+    return vc_dir(cwd) / "learned_rules.md"
 
 def review_plan_path(cwd: Path) -> Path:
-    return vg_dir(cwd) / "review_plan.json"
+    return vc_dir(cwd) / "review_plan.json"
 
 
 # ─── Safe JSON read/write with file locking ───────────────────────────────────
@@ -141,12 +141,12 @@ def add_finding(cwd: Path, finding: dict) -> Optional[str]:
     findings = load_findings(cwd)
 
     # Generate next ID
-    existing_ids = [f.get("id", "vg-000") for f in findings]
+    existing_ids = [f.get("id", "vc-000") for f in findings]
     max_num = max(
-        (int(i.split("-")[1]) for i in existing_ids if i.startswith("vg-")),
+        (int(i.split("-")[1]) for i in existing_ids if i.startswith("vc-") or i.startswith("vg-")),
         default=0
     )
-    new_id = f"vg-{max_num + 1:03d}"
+    new_id = f"vc-{max_num + 1:03d}"
 
     new_finding = {
         "id": new_id,
@@ -437,6 +437,7 @@ def increment_pattern_fired(cwd: Path, pattern_name: str):
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 MODELS = {
+    # Claude models
     "haiku": {
         "id": "claude-haiku-4-5-20251001",
         "label": "Claude Haiku",
@@ -453,10 +454,60 @@ MODELS = {
         "avg_tokens_per_analysis": 2500,
         "avg_cost_per_analysis": 0.018,
     },
+    "opus": {
+        "id": "claude-3-5-opus",
+        "label": "Claude 3.5 Opus",
+        "cost_per_1m_input": 15.00,
+        "cost_per_1m_output": 75.00,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.09,
+    },
+    # Antigravity / Gemini models
+    "gemini-flash": {
+        "id": "gemini-3.5-flash",
+        "label": "Gemini 3.5 Flash",
+        "cost_per_1m_input": 0.075,
+        "cost_per_1m_output": 0.30,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.0005,
+    },
+    "gemini-pro": {
+        "id": "gemini-3.5-pro",
+        "label": "Gemini 3.5 Pro",
+        "cost_per_1m_input": 1.25,
+        "cost_per_1m_output": 5.00,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.008,
+    },
+    # Codex models
+    "gpt-5.5": {
+        "id": "gpt-5.5",
+        "label": "GPT-5.5",
+        "cost_per_1m_input": 2.00,
+        "cost_per_1m_output": 10.00,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.012,
+    },
+    "gpt-5.4": {
+        "id": "gpt-5.4",
+        "label": "GPT-5.4",
+        "cost_per_1m_input": 1.00,
+        "cost_per_1m_output": 5.00,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.006,
+    },
+    "gpt-5.4-mini": {
+        "id": "gpt-5.4-mini",
+        "label": "GPT-5.4 Mini",
+        "cost_per_1m_input": 0.15,
+        "cost_per_1m_output": 0.60,
+        "avg_tokens_per_analysis": 2500,
+        "avg_cost_per_analysis": 0.0009,
+    },
 }
 
 DEFAULT_CONFIG = {
-    "model": "haiku",
+    "mode": "full",
     "telemetry": False,  # Opt-in only, never enabled by default
     "version": "0.1.0",
     "installed_at": None,
@@ -474,11 +525,51 @@ def save_config(cwd: Path, updates: dict):
     write_json(config_path(cwd), cfg)
     if "model" in updates:
         log_event(cwd, {"type": "model_changed", "model": updates["model"]})
+    if "mode" in updates:
+        log_event(cwd, {"type": "mode_changed", "mode": updates["mode"]})
+
+
+MODE_TO_MODEL = {
+    ".claude": {
+        "lite": "haiku",
+        "full": "sonnet",
+        "pro": "opus",
+        "off": "haiku"
+    },
+    ".agents": {
+        "lite": "gemini-flash",
+        "full": "gemini-pro",
+        "pro": "gemini-pro",
+        "off": "gemini-flash"
+    },
+    ".codex": {
+        "lite": "gpt-5.4-mini",
+        "full": "gpt-5.4",
+        "pro": "gpt-5.5",
+        "off": "gpt-5.4-mini"
+    }
+}
+
+
+def get_current_app_name() -> str:
+    try:
+        p = Path(__file__).resolve()
+        for parent in p.parents:
+            if parent.name in (".claude", ".agents", ".codex"):
+                return parent.name
+    except Exception:
+        pass
+    return ".claude"
 
 
 def get_model_info(cwd: Path) -> dict:
     cfg = load_config(cwd)
-    return MODELS.get(cfg.get("model", "haiku"), MODELS["haiku"])
+    model = cfg.get("model")
+    if not model:
+        app_name = get_current_app_name()
+        mode = cfg.get("mode", "full")
+        model = MODE_TO_MODEL.get(app_name, MODE_TO_MODEL[".claude"]).get(mode, "haiku")
+    return MODELS.get(model, MODELS["haiku"])
 
 
 # ─── Lock ────────────────────────────────────────────────────────────────────
@@ -530,4 +621,4 @@ def now_iso() -> str:
 
 
 def is_initialized(cwd: Path) -> bool:
-    return (vg_dir(cwd) / "config.json").exists()
+    return (vc_dir(cwd) / "config.json").exists()

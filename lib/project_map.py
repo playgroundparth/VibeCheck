@@ -54,7 +54,7 @@ MAX_FILE_BYTES = 500_000
 
 
 def map_path(cwd: Path) -> Path:
-    return store.vg_dir(cwd) / MAP_PATH_FRAG
+    return store.vc_dir(cwd) / MAP_PATH_FRAG
 
 
 def load_map(cwd: Path) -> Optional[Dict]:

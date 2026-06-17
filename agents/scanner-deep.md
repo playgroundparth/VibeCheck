@@ -336,7 +336,7 @@ git log --oneline -15 2>/dev/null
 ## Output
 
 Load existing `.vibecheck/findings.json`.
-Generate IDs incrementing from highest existing vg-NNN.
+Generate IDs incrementing from highest existing vc-NNN.
 Tag all findings `"source": "scan"`.
 
 Max 20 findings. One finding per issue — no severity stacking.

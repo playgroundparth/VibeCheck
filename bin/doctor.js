@@ -12,12 +12,7 @@ import os from "os";
 import { execSync } from "child_process";
 
 const cwd = process.cwd();
-const claudeDir = path.join(cwd, ".claude");
 const vgDir = path.join(cwd, ".vibecheck");
-const hooksDir = path.join(claudeDir, "hooks");
-const libDir = path.join(hooksDir, "lib");
-const commandsDir = path.join(claudeDir, "commands");
-const userSettingsPath = path.join(os.homedir(), ".claude", "settings.json");
 
 let ok = 0, warn = 0, fail = 0;
 
@@ -34,71 +29,106 @@ if (fs.existsSync(vgDir)) {
   error(".vibecheck/ not found — VibeCheck not initialized", "npx vibecheck init");
 }
 
-// 2. Hook files
-const hookFiles = [
-  "vibecheck_stop.py",
-  "vibecheck_session_start.py",
-  "vibecheck_post_tool.py",
-];
-for (const f of hookFiles) {
-  const p = path.join(hooksDir, f);
-  if (fs.existsSync(p)) {
-    pass(`.claude/hooks/${f}`);
-  } else {
-    error(`.claude/hooks/${f} missing`, "npx vibecheck update");
+const apps = [
+  {
+    name: "Claude Code",
+    dir: path.join(cwd, ".claude"),
+    relDir: ".claude",
+    globalSettingsPath: path.join(os.homedir(), ".claude", "settings.json"),
+    globalSettingsLabel: "~/.claude/settings.json",
+    hookKeys: ["Stop", "SessionStart", "PostToolUse"],
+    hookSubstring: "vibecheck"
+  },
+  {
+    name: "Antigravity/Gemini",
+    dir: path.join(cwd, ".agents"),
+    relDir: ".agents",
+    globalSettingsPath: path.join(os.homedir(), ".gemini", "settings.json"),
+    globalSettingsLabel: "~/.gemini/settings.json",
+    hookKeys: ["SessionEnd", "SessionStart", "AfterTool"],
+    hookSubstring: "vibecheck"
+  },
+  {
+    name: "Codex",
+    dir: path.join(cwd, ".codex"),
+    relDir: ".codex",
+    globalSettingsPath: path.join(os.homedir(), ".codex", "hooks.json"),
+    globalSettingsLabel: "~/.codex/hooks.json",
+    hookKeys: ["Stop", "SessionStart", "PostToolUse"],
+    hookSubstring: "vibecheck"
   }
-}
-
-// 3. Lib files (spot-check key ones)
-const keyLibFiles = [
-  "store.py", "static_checks.py", "patterns.py", "telemetry.py",
-  "detection_engine.py", "capability.py", "async_detection.py",
 ];
-const missingLib = keyLibFiles.filter(f => !fs.existsSync(path.join(libDir, f)));
-if (missingLib.length === 0) {
-  pass(".claude/hooks/lib/ — all key lib files present");
-} else {
-  error(`.claude/hooks/lib/ — missing: ${missingLib.join(", ")}`, "npx vibecheck update");
-}
 
-// 4. Command files
-const allCommands = [
-  "vibecheck.md", "vibecheck-detail.md", "vibecheck-resolve.md",
-  "vibecheck-scan.md", "vibecheck-review.md", "vibecheck-stage.md",
-  "vibecheck-status.md", "vibecheck-report.md", "vibecheck-timeline.md",
-  "vibecheck-skills.md", "vibecheck-promote-skill.md", "vibecheck-model.md",
-];
-const missingCmds = allCommands.filter(f => !fs.existsSync(path.join(commandsDir, f)));
-if (missingCmds.length === 0) {
-  pass(".claude/commands/ — all command files present");
-} else {
-  error(`.claude/commands/ — missing: ${missingCmds.join(", ")}`, "npx vibecheck update");
-}
+for (const app of apps) {
+  console.log(`\n🔍 Checking ${app.name}...`);
+  if (!fs.existsSync(app.dir)) {
+    error(`${app.relDir}/ directory not found`, "npx vibecheck init");
+    continue;
+  }
+  pass(`${app.relDir}/ directory exists`);
 
-// 5. Global hooks in ~/.claude/settings.json
-if (fs.existsSync(userSettingsPath)) {
-  try {
-    const settings = JSON.parse(fs.readFileSync(userSettingsPath, "utf8"));
-    const hooks = settings.hooks || {};
-    const hasStop  = (hooks.Stop || []).some(h => JSON.stringify(h).includes("vibecheck_stop"));
-    const hasStart = (hooks.SessionStart || []).some(h => JSON.stringify(h).includes("vibecheck_session_start"));
-    const hasPost  = (hooks.PostToolUse || []).some(h => JSON.stringify(h).includes("vibecheck_post_tool"));
-
-    if (hasStop && hasStart && hasPost) {
-      pass("~/.claude/settings.json — all 3 hooks registered (Stop, SessionStart, PostToolUse)");
+  // 2. Hook files
+  const hookFiles = [
+    "vibecheck_stop.py",
+    "vibecheck_session_start.py",
+    "vibecheck_post_tool.py",
+  ];
+  for (const f of hookFiles) {
+    const p = path.join(app.dir, "hooks", f);
+    if (fs.existsSync(p)) {
+      pass(`${app.relDir}/hooks/${f} exists`);
     } else {
-      const missing = [
-        !hasStop  ? "Stop"         : null,
-        !hasStart ? "SessionStart" : null,
-        !hasPost  ? "PostToolUse"  : null,
-      ].filter(Boolean);
-      error(`~/.claude/settings.json — missing hooks: ${missing.join(", ")}`, "npx vibecheck update  (or re-run init)");
+      error(`${app.relDir}/hooks/${f} missing`, "npx vibecheck update");
     }
-  } catch {
-    warning("~/.claude/settings.json exists but could not be parsed", "Check for JSON syntax errors");
   }
-} else {
-  error("~/.claude/settings.json not found — hooks won't fire", "npx vibecheck init  (or re-run init)");
+
+  // 3. Lib files (spot-check key ones)
+  const keyLibFiles = [
+    "store.py", "static_checks.py", "patterns.py", "telemetry.py",
+    "detection_engine.py", "capability.py", "async_detection.py",
+  ];
+  const missingLib = keyLibFiles.filter(f => !fs.existsSync(path.join(app.dir, "hooks", "lib", f)));
+  if (missingLib.length === 0) {
+    pass(`${app.relDir}/hooks/lib/ — all key lib files present`);
+  } else {
+    error(`${app.relDir}/hooks/lib/ — missing: ${missingLib.join(", ")}`, "npx vibecheck update");
+  }
+
+  // 4. Command files
+  const allCommands = [
+    "vibecheck.md", "vibecheck-scan.md", "vibecheck-review.md",
+    "vibecheck-skills.md", "vibecheck-help.md"
+  ];
+  const missingCmds = allCommands.filter(f => !fs.existsSync(path.join(app.dir, "commands", f)));
+  if (missingCmds.length === 0) {
+    pass(`${app.relDir}/commands/ — all command files present`);
+  } else {
+    error(`${app.relDir}/commands/ — missing: ${missingCmds.join(", ")}`, "npx vibecheck update");
+  }
+
+  // 5. Global hooks
+  if (fs.existsSync(app.globalSettingsPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(app.globalSettingsPath, "utf8"));
+      const hooks = settings.hooks || {};
+      const checks = app.hookKeys.map(k => {
+        return {
+          key: k,
+          ok: (hooks[k] || []).some(h => JSON.stringify(h).includes(app.hookSubstring))
+        };
+      });
+      const missing = checks.filter(c => !c.ok).map(c => c.key);
+      if (missing.length === 0) {
+        pass(`${app.globalSettingsLabel} — all ${app.hookKeys.length} hooks registered (${app.hookKeys.join(", ")})`);
+      } else {
+        error(`${app.globalSettingsLabel} — missing hooks: ${missing.join(", ")}`, "npx vibecheck update (or re-run init)");
+      }
+    } catch {
+      warning(`${app.globalSettingsLabel} exists but could not be parsed`, "Check for JSON syntax errors");
+    }
+  } else {
+    error(`${app.globalSettingsLabel} not found — hooks won't fire`, "npx vibecheck init (or re-run init)");
+  }
 }
 
 // 6. CLAUDE.md

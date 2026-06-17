@@ -23,10 +23,10 @@ If the initialization check fails, stop here.
 
 Arguments to parse from: `$ARGUMENTS`
 
-**Model selection** (pick one; defaults to haiku):
-- `--model haiku` → `vibecheck-scanner` (fast, ~$0.05)
-- `--model sonnet` or `--deep` → `vibecheck-scanner-deep` (thorough, ~$0.30)
-- `--model opus` → `vibecheck-scanner-opus` (exhaustive, ~$2–4)
+**Mode/Model selection** (pick one; defaults to the configured mode):
+- `--lite`, or using a lite model (`haiku`, `gemini-flash`, `gpt-5.4-mini`) → `vibecheck-scanner` (fast, lowest cost)
+- `--deep`, `--full`, or using a full model (`sonnet`, `gemini-pro`, `gpt-5.4`) → `vibecheck-scanner-deep` (thorough, balanced)
+- `--pro`, or using a pro model (`opus`, `gpt-5.5`) → `vibecheck-scanner-opus` (exhaustive, deepest analysis)
 
 **Scan mode** (optional):
 - `--full` → tell the agent: "FULL REPO SCAN. Run all grep-first discovery sections (2a–2i plus 2j for each derived check) before reading any files. Read every file the greps return. Do not stop until all sections are complete."
@@ -35,10 +35,10 @@ Arguments to parse from: `$ARGUMENTS`
 **Focus area** (optional; any non-flag argument):
 - `auth`, `payments`, `src/queue`, etc. → tell the agent: "Focus this scan on: [area]. Weight grep sections toward that area — still run all greps but prioritize reading files from that domain."
 
-Build the SubAgent prompt from the above. Example: if user typed `/vibecheck-scan --model sonnet auth`, invoke `vibecheck-scanner-deep` with: "Focus on: auth."
+Build the SubAgent prompt from the above. Example: if user typed `/vibecheck-scan --deep auth`, invoke `vibecheck-scanner-deep` with: "Focus on: auth."
 
-If no model flag: use `vibecheck-scanner` (haiku).
-If no mode flag: use agent defaults (grep-first applies to all modes).
+If no mode or model flag: check configured mode (default is `full` -> `vibecheck-scanner-deep`).
+If no scan mode flag: use agent defaults (grep-first applies to all modes).
 If no focus: no focus instruction needed.
 
 ## After the scan
@@ -46,7 +46,7 @@ If no focus: no focus instruction needed.
 Run this and display the output exactly as-is:
 ```bash
 ROOT=$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
-PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/lib/vg_display.py" 2>/dev/null
+PYTHONPATH="$ROOT/.claude/hooks/lib" python3 "$ROOT/.claude/hooks/lib/vc_display.py" 2>/dev/null
 ```
 
 Display the output verbatim — do not rewrite or summarize.

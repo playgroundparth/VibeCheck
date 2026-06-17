@@ -217,6 +217,60 @@ with tempfile.TemporaryDirectory() as tmpdir:
     pm.map_path = original_map_path
 
 
+# ── Suite 6: Architecture checks ──────────────────────────────────────────────
+
+print("\n── Architecture checks ──")
+
+import static_checks
+
+# Test Tarjan SCC
+graph_cycle = {
+    "a.ts": ["b.ts"],
+    "b.ts": ["c.ts"],
+    "c.ts": ["a.ts"],
+    "d.ts": []
+}
+sccs = static_checks._arch_tarjan_scc(graph_cycle)
+check("Tarjan SCC detects a 3-file cycle", len(sccs) == 1)
+if len(sccs) == 1:
+    check("Cycle contains a.ts", "a.ts" in sccs[0])
+    check("Cycle contains b.ts", "b.ts" in sccs[0])
+    check("Cycle contains c.ts", "c.ts" in sccs[0])
+    check("Cycle does not contain d.ts", "d.ts" not in sccs[0])
+
+# Test Layer Violation
+graph_layer = {
+    "src/infra/db.ts": ["src/api/auth.ts"],
+    "src/api/auth.ts": []
+}
+layer_findings = static_checks._check_arch_layer_violations(graph_layer)
+check("Layer violation detected (infra -> api)", len(layer_findings) == 1)
+if len(layer_findings) == 1:
+    check("Layer violation identifies src/infra/db.ts", layer_findings[0]["file"] == "src/infra/db.ts")
+
+# Test Dead Files
+import tempfile
+with tempfile.TemporaryDirectory() as tmpdir:
+    tmp = Path(tmpdir)
+    (tmp / "main.ts").write_text("import './a'", encoding="utf-8")
+    (tmp / "a.ts").write_text("import './b'", encoding="utf-8")
+    (tmp / "b.ts").write_text("", encoding="utf-8")
+    (tmp / "dead.ts").write_text("", encoding="utf-8")
+    (tmp / "index.ts").write_text("", encoding="utf-8")
+
+    graph_dead = {
+        "main.ts": ["a.ts"],
+        "a.ts": ["b.ts"],
+        "b.ts": [],
+        "dead.ts": [],
+        "index.ts": []
+    }
+    dead_findings = static_checks._check_arch_dead_files(graph_dead, tmp)
+    check("Dead files detected (dead.ts)", len(dead_findings) == 1, f"got {len(dead_findings)} findings: {dead_findings}")
+    if len(dead_findings) == 1:
+        check("Dead file is dead.ts", dead_findings[0]["file"] == "dead.ts")
+
+
 # ── Results ──────────────────────────────────────────────────────────────────
 
 print(f"\n{'='*50}")

@@ -17,9 +17,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 import project, store, context_extractor, detection_engine, capability
 
-DEBUG = os.environ.get("VIBEGUARD_DEBUG") == "1"
+DEBUG = os.environ.get("VIBECHECK_DEBUG") == "1"
 
-WATCHED_TOOLS = {"Read", "Write", "Edit", "MultiEdit"}
+WATCHED_TOOLS = {
+    "Read", "Write", "Edit", "MultiEdit", # Claude
+    "view_file", "write_to_file", "replace_file_content", "multi_replace_file_content", # Antigravity
+    "read_file", "write_file", "apply_patch" # Codex
+}
+WRITE_TOOLS = {
+    "Write", "Edit", "MultiEdit",
+    "write_to_file", "replace_file_content", "multi_replace_file_content",
+    "write_file", "apply_patch"
+}
 SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
                    ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".webp",
                    ".lock", ".sum"}
@@ -111,8 +120,8 @@ def _update_active_frameworks(cwd: Path, new_frameworks: set, rel_path: str) -> 
     """Union new_frameworks into .vibecheck/active_frameworks.json."""
     if not new_frameworks:
         return
-    vg_dir = store.vg_dir(cwd)
-    af_path = vg_dir / ACTIVE_FRAMEWORKS_FILE
+    vc_dir = store.vc_dir(cwd)
+    af_path = vc_dir / ACTIVE_FRAMEWORKS_FILE
     existing = set()
     existing_files = []
     if af_path.exists():
@@ -135,19 +144,19 @@ def _update_active_frameworks(cwd: Path, new_frameworks: set, rel_path: str) -> 
 _installed_skills_cache = None  # type: set or None
 
 
-def _skills_dir(claude_dir: Path) -> Path:
-    return claude_dir / "skills"
+def _skills_dir(app_dir: Path) -> Path:
+    return app_dir / "skills"
 
 
 def _templates_dir() -> Path:
     return Path(__file__).parent / "lib" / "skills"
 
 
-def _load_skills_cache(claude_dir: Path) -> set:
+def _load_skills_cache(app_dir: Path) -> set:
     global _installed_skills_cache
     if _installed_skills_cache is not None:
         return _installed_skills_cache
-    skills_dir = _skills_dir(claude_dir)
+    skills_dir = _skills_dir(app_dir)
     if skills_dir.exists():
         _installed_skills_cache = {f.name for f in skills_dir.glob("check-*-integration.md")}
     else:
@@ -155,13 +164,13 @@ def _load_skills_cache(claude_dir: Path) -> set:
     return _installed_skills_cache
 
 
-def _install_skill(claude_dir: Path, template_name: str, skill_name: str) -> bool:
-    """Copy a skill template from lib/skills/ to .claude/skills/. Returns True if installed."""
+def _install_skill(app_dir: Path, template_name: str, skill_name: str) -> bool:
+    """Copy a skill template from lib/skills/ to app_dir/skills/. Returns True if installed."""
     global _installed_skills_cache
     src = _templates_dir() / template_name
     if not src.exists():
         return False
-    dst_dir = _skills_dir(claude_dir)
+    dst_dir = _skills_dir(app_dir)
     dst_dir.mkdir(parents=True, exist_ok=True)
     dst = dst_dir / skill_name
     dst.write_text(src.read_text())
@@ -170,19 +179,19 @@ def _install_skill(claude_dir: Path, template_name: str, skill_name: str) -> boo
     return True
 
 
-def _detect_and_install_skills(cwd: Path, content: str) -> None:
-    claude_dir = cwd / ".claude"
-    if not claude_dir.exists():
+def _detect_and_install_skills(cwd: Path, content: str, app_dir_name: str) -> None:
+    app_dir = cwd / app_dir_name
+    if not app_dir.exists():
         return
     templates_dir = _templates_dir()
     if not templates_dir.exists():
         return
-    installed = _load_skills_cache(claude_dir)
+    installed = _load_skills_cache(app_dir)
     for _name, (pattern, template, skill_file) in INTEGRATION_SKILLS.items():
         if skill_file in installed:
             continue
         if pattern.search(content):
-            _install_skill(claude_dir, template, skill_file)
+            _install_skill(app_dir, template, skill_file)
 
 
 def debug_log(cwd, msg):
@@ -209,12 +218,19 @@ def main():
     if not cwd or not store.is_initialized(cwd):
         sys.exit(0)
 
+    cfg = store.load_config(cwd)
+    mode = cfg.get("mode", "full")
+    if mode == "off":
+        sys.exit(0)
+
     tool_input = hook_input.get("tool_input", {})
     tool_response = hook_input.get("tool_response", "")
 
     file_path = (
         tool_input.get("file_path") or
-        tool_input.get("path") or ""
+        tool_input.get("path") or
+        tool_input.get("TargetFile") or
+        tool_input.get("AbsolutePath") or ""
     )
     if not file_path:
         sys.exit(0)
@@ -223,55 +239,74 @@ def main():
     if Path(file_path).suffix.lower() in SKIP_EXTENSIONS:
         sys.exit(0)
 
+    # Determine absolute and relative paths
+    abs_path = Path(file_path) if Path(file_path).is_absolute() else cwd / file_path
+    try:
+        rel_path = str(abs_path.relative_to(cwd))
+    except ValueError:
+        rel_path = str(abs_path)
+
     # Get content to analyze
     content = ""
-    if tool_name == "Read":
+    if tool_name in ("Read", "view_file", "read_file"):
         content = tool_response if isinstance(tool_response, str) else str(tool_response)
     elif tool_name == "Write":
+        content = tool_input.get("content", "")
+    elif tool_name == "write_to_file":
+        content = tool_input.get("CodeContent", "")
+    elif tool_name == "write_file":
         content = tool_input.get("content", "")
     elif tool_name == "Edit":
         content = tool_input.get("new_string", "")
     elif tool_name == "MultiEdit":
         edits = tool_input.get("edits", [])
         content = " ".join(e.get("new_string", "") for e in edits)
+    elif tool_name == "replace_file_content":
+        content = tool_input.get("ReplacementContent", "")
+
+    # Disk-read fallback
+    if not content and tool_name in WRITE_TOOLS:
+        try:
+            if abs_path.exists():
+                content = abs_path.read_text(errors="ignore")
+        except Exception:
+            pass
 
     if not content or len(content) < 50:
         sys.exit(0)
 
-    # Make path relative to project root for storage
-    try:
-        rel_path = str(Path(file_path).relative_to(cwd))
-    except ValueError:
-        rel_path = file_path
+    app_dir_name = Path(__file__).parent.parent.name
+    if not app_dir_name.startswith("."):
+        # fallback if not installed in a dot-folder structure during testing
+        app_dir_name = ".claude"
 
-    context_extractor.update_context(store.vg_dir(cwd), rel_path, content)
+    context_extractor.update_context(store.vc_dir(cwd), rel_path, content)
     debug_log(cwd, f"Extracted context from {rel_path}")
 
-    _detect_and_install_skills(cwd, content)
+    _detect_and_install_skills(cwd, content, app_dir_name)
 
-    # Framework detection — only on writes (not Read) so we know what Claude is changing
-    if tool_name in ("Write", "Edit", "MultiEdit"):
+    # Framework detection — only on writes so we know what is changing
+    if tool_name in WRITE_TOOLS:
         matched = _detect_frameworks(content, file_path)
         if matched:
             _update_active_frameworks(cwd, matched, rel_path)
             debug_log(cwd, f"Frameworks detected: {matched}")
 
         # ── Run sync detection engine (<100ms) ─────────────────────────────
-        abs_path = Path(file_path) if Path(file_path).is_absolute() else cwd / file_path
         evidence = detection_engine.run(cwd, [abs_path])
         debug_log(cwd, f"Detection engine: {len(evidence)} evidence item(s)")
 
         # Compute next finding ID
         findings = store.load_findings(cwd)
         next_id = max(
-            (int(f["id"].split("-")[1]) for f in findings if f.get("id", "").startswith("vg-")),
+            (int(f["id"].split("-")[1]) for f in findings if f.get("id", "").startswith("vc-") or f.get("id", "").startswith("vg-")),
             default=0
         ) + 1
 
-        # ── Launch async detection if Enhanced/Pro tier ────────────────────
+        # ── Launch async detection if Enhanced/Pro tier and mode is full/pro ──
         tier = capability.detect_tier(cwd)
-        async_lock = store.vg_dir(cwd) / "async.lock"
-        if tier in ("enhanced", "pro") and not async_lock.exists():
+        async_lock = store.vc_dir(cwd) / "async.lock"
+        if mode in ("full", "pro") and tier in ("enhanced", "pro") and not async_lock.exists():
             _launch_async_detection(cwd, [str(abs_path)])
             debug_log(cwd, f"Launched async detection (tier: {tier})")
 
@@ -280,7 +315,7 @@ def main():
         if matched:
             names = ", ".join(sorted(matched))
             framework_note = (
-                f"\nFrameworks: {names} — load .claude/hooks/lib/frameworks/<name>.md "
+                f"\nFrameworks: {names} — load {app_dir_name}/hooks/lib/frameworks/<name>.md "
                 f"for context during your check."
             )
 

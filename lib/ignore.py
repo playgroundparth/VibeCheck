@@ -171,7 +171,7 @@ class IgnoreMatcher:
 
 
 # Default content for .vibecheck-ignore on init
-DEFAULT_VIBEGUARDIGNORE_CONTENT = """# VibeCheck ignore patterns
+DEFAULT_VIBECHECKIGNORE_CONTENT = """# VibeCheck ignore patterns
 # Like .gitignore — patterns to skip during analysis.
 # Defaults are applied automatically (node_modules/, dist/, etc).
 # This file is for your project-specific overrides.
